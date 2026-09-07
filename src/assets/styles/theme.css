@@ -1,0 +1,32 @@
+@import "tailwindcss" source("../..");
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./theme-tokens.css";
+@import "./glass-badge.css";
+@import "./subtitle-lines.css";
+
+@source not "../../**/__tests__";
+@source not "../../**/*.test.*";
+
+@custom-variant dark (&:is(.dark *));
+/* Base UI uses data-orientation="horizontal|vertical", map to short variants for Tailwind */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+/* Chromium injects `body { font-family: system-ui, … }` (extension_fonts.css)
+   into every extension page, which intercepts the font-family inherited from
+   Tailwind preflight's `html` rule. The injected sheet cascades as UNLAYERED
+   author CSS, so this override must be unlayered too — inside @layer base it
+   would lose. */
+body {
+  font-family: var(--rf-font-sans);
+}

@@ -1,0 +1,42 @@
+import { useMutation } from "@tanstack/react-query"
+import { kebabCase } from "case-anything"
+import { toastManager } from "@/components/ui/base-ui/toast"
+import type { Config } from "@/types/config/config"
+import { getObjectWithoutAPIKeys } from "@/utils/config/api"
+import { APP_NAME } from "@/utils/constants/app"
+import { saveAs } from "@/utils/download"
+import { i18n } from "@/utils/i18n"
+
+interface UseExportConfigOptions {
+  config: Config
+  schemaVersion: number
+}
+
+export function useExportConfig({ config, schemaVersion }: UseExportConfigOptions) {
+  return useMutation({
+    mutationFn: async (includeApiKeys: boolean) => {
+      let exportConfig = config
+
+      if (!includeApiKeys) {
+        exportConfig = getObjectWithoutAPIKeys(config)
+      }
+
+      const json = JSON.stringify(
+        {
+          config: exportConfig,
+          schemaVersion,
+        },
+        null,
+        2,
+      )
+      const blob = new Blob([json], { type: "text/json" })
+      saveAs(blob, `${kebabCase(APP_NAME)}-config-v${schemaVersion}.json`)
+    },
+    onSuccess: () => {
+      toastManager.add({
+        type: "success",
+        title: i18n.t("options.preference.config.manualSync.exportSuccess"),
+      })
+    },
+  })
+}

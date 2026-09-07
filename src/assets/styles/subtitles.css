@@ -1,0 +1,62 @@
+/**
+ * Narrow Tailwind entry for the subtitles content script.
+ *
+ * `theme.css` scans the entire `src/` tree (`source("../..")`), so its compiled
+ * utilities layer carries classes for every entrypoint (options, popup,
+ * selection toolbar, …) — ~196KB. The subtitles UI needs only a small, closed
+ * set of components, so this entry limits `@source` to exactly the directories
+ * that can contribute classes to it:
+ *
+ *   - the subtitles entrypoint itself (views, panel, toast, buttons)
+ *   - `src/components/ui/base-ui` — the shared primitives it imports
+ *     (button/select/slider/switch/label/tooltip/toast/color-picker and the
+ *     popup-animation-classes constant); extra files in that directory are
+ *     harmless — Tailwind only emits classes that actually appear
+ *   - `src/components/debounced-color-picker.tsx` and the hooks/utils those
+ *     components pull class strings from
+ *   - the options page's `video-subtitles` directory and
+ *     `gradient-background.tsx`: the settings-page subtitle preview renders
+ *     this same sheet inside its shadow frame, and its class strings live in
+ *     those files
+ *
+ * Everything else (tokens, `dark`/`data-*` variants, animation utilities,
+ * subtitle-lines base rules) is shared verbatim with `theme.css` via
+ * `./theme-tokens.css`, so the two entries cannot drift apart.
+ */
+
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./theme-tokens.css";
+@import "./subtitle-lines.css";
+
+@source "../../entrypoints/subtitles.content";
+@source "../../entrypoints/options/pages/video-subtitles";
+@source "../../components/ui/base-ui";
+@source "../../components/debounced-color-picker.tsx";
+@source "../../components/gradient-background.tsx";
+@source "../../hooks";
+@source "../../utils/styles";
+@source not "../../**/__tests__";
+@source not "../../**/*.test.*";
+
+@custom-variant dark (&:is(.dark *));
+/* Base UI uses data-orientation="horizontal|vertical", map to short variants for Tailwind */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+/* Match theme.css: keep the unlayered font override available even though the
+   subtitles UI renders inside a shadow root (ShadowHostBuilder rewrites
+   `:root`→`:host`, which also rewrites `:root body` selectors like this one). */
+body {
+  font-family: var(--rf-font-sans);
+}
