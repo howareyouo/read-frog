@@ -308,12 +308,30 @@ export class TranslationCoordinator {
     runId: number,
     requestedTimeMs: number,
   ) {
+    // Publish a cue the instant its own request lands, instead of waiting for the
+    // whole look-ahead window to return. The background deliberately holds a far
+    // prefetch cue until it nears playback (dueAt); without this, every near cue
+    // in the same window — including the line the viewer is reading — sat pinned
+    // behind that farthest sibling, so a larger look-ahead made "loading" last
+    // longer, the opposite of its purpose.
+    const publishOne = (fragment: SubtitlesFragment) => {
+      if (!this.active || runId !== this.runId) return
+      const [valid] = this.filterIdentityValid([fragment])
+      if (!valid) return
+      this.translatingStarts.delete(valid.start)
+      this.translatedStarts.add(valid.start)
+      this.rememberIdentity(valid)
+      this.onTranslated([valid])
+      this.updateLoadingStateAt(this.getCurrentVideoTimeMs(requestedTimeMs), this.getFragments())
+    }
+
     try {
       const translated = await translateSubtitles(
         batch,
         this.videoContext,
         undefined,
         requestedTimeMs,
+        publishOne,
       )
       if (!this.active || runId !== this.runId) {
         return

@@ -1,4 +1,8 @@
-import { PROCESS_LOOK_AHEAD_MS } from "@/utils/constants/subtitles"
+import { getCachedConfig } from "@/utils/config/storage"
+import {
+  DEFAULT_TRANSLATE_LOOK_AHEAD_SECONDS,
+  PROCESS_LOOK_AHEAD_MS,
+} from "@/utils/constants/subtitles"
 import type { SerializableProviderRef } from "@/utils/providers/provider-ref"
 import { effectiveLookAheadMs } from "@/utils/subtitles/lookahead"
 import { segmentChunkWithFallback } from "@/utils/subtitles/processor/ai-segmentation"
@@ -115,7 +119,7 @@ export class SegmentationPipeline {
   private async processNextChunk(currentTimeMs: number): Promise<boolean> {
     if (this.stopped) return false
 
-    const chunk = this.findNextChunk(currentTimeMs)
+    const chunk = await this.findNextChunk(currentTimeMs)
     if (chunk.length === 0) return false
 
     chunk.forEach((f) => this.segmentedRawStarts.add(f.start))
@@ -187,19 +191,27 @@ export class SegmentationPipeline {
     this.onChunkSegmented?.(chunk, nextFragments, chunkStart, chunkEnd)
   }
 
-  private findNextChunk(currentTimeMs: number): SubtitlesFragment[] {
+  private async findNextChunk(currentTimeMs: number): Promise<SubtitlesFragment[]> {
     const searchStart = Math.max(0, currentTimeMs - 10_000)
-    // Only segment chunks within the look-ahead window ahead of the current
-    // position. Without this bound the loop keeps segmenting until the end of
-    // the video regardless of how far playback has actually reached, which
-    // eagerly sends the entire remaining video to the AI segmentation model.
-    // Chunks further ahead are picked up later, once playback advances and the
-    // translation coordinator restarts the pipeline.
-    const lookAheadMs = effectiveLookAheadMs(
+    // Segment ahead of the playhead, but at least as far ahead as the
+    // translation look-ahead the user configured: the translator can only
+    // translate cues the segmentation track contains, so a hard 60s ceiling
+    // here silently capped any larger look-ahead — cues past it never got an AI
+    // recut, and when the recut finally landed it wiped their (already
+    // translated) starts and forced a re-translate, which is what surfaced as
+    // "loading" again after a seek. Without some bound the loop would eagerly
+    // send the entire remaining video to the segmentation model instead.
+    const config = await getCachedConfig()
+    const translateLookAheadMs = effectiveLookAheadMs(
+      (config?.videoSubtitles.translateLookAheadSeconds ??
+        DEFAULT_TRANSLATE_LOOK_AHEAD_SECONDS) * 1000,
+      this.getVideoElement()?.playbackRate,
+    )
+    const chunkLookAheadMs = effectiveLookAheadMs(
       PROCESS_LOOK_AHEAD_MS,
       this.getVideoElement()?.playbackRate,
     )
-    const windowEndBound = currentTimeMs + lookAheadMs
+    const windowEndBound = currentTimeMs + Math.max(chunkLookAheadMs, translateLookAheadMs)
 
     // rawFragments is start-sorted, so binary search the lower time bound and scan
     // only the look-ahead window instead of the whole track on every chunk.
@@ -215,7 +227,10 @@ export class SegmentationPipeline {
     }
     if (!firstUnprocessed) return []
 
-    const windowEnd = firstUnprocessed.start + lookAheadMs
+    // One AI request stays the same size as before (the chunk window, not the
+    // widened search bound): a bigger window is what makes the model drift or
+    // emit one cue spanning the whole chunk.
+    const windowEnd = firstUnprocessed.start + chunkLookAheadMs
     const chunk: SubtitlesFragment[] = []
     for (; index < this.rawFragments.length; index++) {
       const fragment = this.rawFragments[index]!

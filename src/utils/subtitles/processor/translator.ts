@@ -215,6 +215,7 @@ export async function translateSubtitles(
   videoContext: SubtitlesVideoContext,
   configOverride?: Config,
   requestedTimeMs?: number,
+  onFragmentSettled?: (fragment: SubtitlesFragment) => void,
 ): Promise<SubtitlesFragment[]> {
   const config = configOverride ?? (await getLocalConfig())
   if (!config) {
@@ -259,9 +260,17 @@ export async function translateSubtitles(
   // when its own batch flushes; composition itself is untouched (the
   // background BatchQueue still merges everything into full batches), and the
   // extra cost is one round trip + one cache read per newly translated cue.
+  //
+  // `onFragmentSettled` fires the moment a cue's own message lands, so the
+  // coordinator can publish the near cues the player is about to read without
+  // waiting for the far, deliberately-held prefetch cues in the same window to
+  // also return. Awaiting the whole window (Promise.allSettled below) re-couples
+  // them exactly like the old single window message did — near cue pinned behind
+  // its farthest sibling — which is the "loading" the look-ahead was meant to
+  // prevent. The awaited result is still returned for the batch-level error gate.
   const results = await Promise.allSettled(
-    fragments.map((fragment, index) =>
-      sendMessage("enqueueSubtitlesTranslateBatch", {
+    fragments.map(async (fragment, index) => {
+      const value = await sendMessage("enqueueSubtitlesTranslateBatch", {
         items: [
           {
             text: fragment.text,
@@ -278,8 +287,15 @@ export async function translateSubtitles(
         webTitle: subtitlePromptContext.webTitle,
         webDescription: subtitlePromptContext.webDescription,
         summary: enableAIContentAware ? subtitlePromptContext.videoSummary : undefined,
-      }),
-    ),
+      })
+      const translation = value.translations[0] ?? null
+      // An empty slot is a failed cue: leave it to the whole-window error gate
+      // rather than publishing a blank over the source line.
+      if (translation && onFragmentSettled) {
+        onFragmentSettled({ ...fragment, translation })
+      }
+      return value
+    }),
   )
 
   let firstErrorMessage: string | undefined

@@ -27,10 +27,19 @@ const MAX_BACKOFF_DELAY_MS = 8000
 // (the ETA shrinks as tokens refill downstream).
 const MAX_GATE_POLL_MS = 1000
 // Cap on a single schedule() sleep. A below-min batch with no dispatch slot to
-// take may hold for its items' whole remaining lead time, but new arrivals
-// re-run schedule() anyway — the cap just keeps the timer short enough to be
+// take may hold past its window for composition, but only up to
+// MAX_COMPOSITION_HOLD_MS — the cap just keeps the timer short enough to be
 // reliable across service-worker suspensions.
 const MAX_HOLD_WAKE_MS = 30_000
+// How long a below-min batch may keep composing past its window while the
+// dispatch gate is backed up, even though its earliest item is far from due.
+// Without a cap the hold lasts the whole remaining lead time, so a look-ahead
+// prefetch of minutes sat untranslated until playback nearly reached it — the
+// user's configured look-ahead silently did nothing whenever the provider was
+// busy. Past the cap the batch flushes below-min (ignoring the gate); the
+// RequestQueue still orders it by dueAt, so near cues keep their priority and
+// the only cost is a smaller batch.
+const MAX_COMPOSITION_HOLD_MS = 10_000
 // Head start a due item keeps for the flush → request → response round trip:
 // the batch must dispatch this long BEFORE the item's deadline, or the
 // translation lands after the content is needed. Only a starting point — the
@@ -444,7 +453,12 @@ export class BatchQueue<T, R> {
       return byWindow
     }
     if (holdForComposition) {
-      return Math.max(byWindow, dueDispatchMs)
+      // Composing past the window is worth at most MAX_COMPOSITION_HOLD_MS of
+      // batch age: a far deadline must not pin the batch until playback nears,
+      // or the look-ahead prefetch it serves silently never happens while the
+      // dispatcher is busy. The window itself still wins if it is longer.
+      const holdCapMs = Math.max(byWindow, batch.createdAt + MAX_COMPOSITION_HOLD_MS)
+      return Math.min(Math.max(byWindow, dueDispatchMs), holdCapMs)
     }
     // A deadline already in the past must not wait out the window; one inside
     // it shortens the wait to exactly the time left.

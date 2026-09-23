@@ -131,11 +131,11 @@ describe("BatchQueue dueAt-based holding", () => {
     return { queue, executed }
   }
 
-  it("holds a below-min batch past batchDelay while its due item is far away", async () => {
+  it("holds a below-min batch past batchDelay, then force-flushes at the composition cap", async () => {
     const dueAt = Date.now() + 20_000
     // The hold only exists while dispatch is contended — see the idle-gate
     // case below.
-    let etaMs = 60_000
+    const etaMs = 60_000
     const { queue, executed } = createQueue({
       minItemsPerBatch: 3,
       getBatchDueAt: () => dueAt,
@@ -143,19 +143,15 @@ describe("BatchQueue dueAt-based holding", () => {
     })
     const promise = queue.enqueue("a")
 
-    await vi.advanceTimersByTimeAsync(10_000)
+    // Composing past the window is capped (MAX_COMPOSITION_HOLD_MS) even though
+    // the deadline is minutes out: a look-ahead prefetch must not sit
+    // untranslated until playback nears just because the provider is busy.
+    await vi.advanceTimersByTimeAsync(9_999)
     expect(executed).toEqual([])
 
-    // Reaching the minimum does not dispatch on its own either: the batch still
-    // waits for a slot, and the far deadline never cuts its window short.
-    const promises = [promise, queue.enqueue("b"), queue.enqueue("c")]
-    await vi.advanceTimersByTimeAsync(5_000)
-    expect(executed).toEqual([])
-
-    etaMs = 0
-    await vi.advanceTimersByTimeAsync(1_100)
-    expect(executed).toEqual([["a", "b", "c"]])
-    expect(await Promise.all(promises)).toEqual(["a", "b", "c"])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(executed).toEqual([["a"]])
+    expect(await promise).toBe("a")
   })
 
   it("prefetches a below-min batch at batchDelay while the dispatcher is idle", async () => {

@@ -13,7 +13,6 @@ import {
   normalizeSegmentAnchorEscapes,
 } from "@/utils/constants/prompt"
 import {
-  BATCH_TIMEOUT_BASE_MS,
   BATCH_TIMEOUT_PER_CHAR_MS,
   DEFAULT_BATCH_CONFIG,
   MAX_BATCH_TIMEOUT_MS,
@@ -451,7 +450,7 @@ async function createTranslationQueues<TContext>(config: TranslationQueueSetupCo
   const requestQueue = new RequestQueue({
     rate,
     capacity,
-    timeoutMs: 20_000,
+    timeoutMs: 30_000,
     maxRetries: 2,
     baseRetryDelayMs: 1_000,
   })
@@ -513,7 +512,7 @@ async function createTranslationQueues<TContext>(config: TranslationQueueSetupCo
       const earliestScheduleAt = Math.min(...dataList.map((d) => d.scheduleAt))
       const totalCharacters = dataList.reduce((sum, d) => sum + d.text.length, 0)
       const timeoutMs = Math.min(
-        BATCH_TIMEOUT_BASE_MS + totalCharacters * BATCH_TIMEOUT_PER_CHAR_MS,
+        30_000 + totalCharacters * BATCH_TIMEOUT_PER_CHAR_MS,
         MAX_BATCH_TIMEOUT_MS,
       )
 

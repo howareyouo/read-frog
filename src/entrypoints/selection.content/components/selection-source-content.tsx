@@ -1,9 +1,5 @@
-import {
-  IconChevronDown,
-  IconChevronUp } from "@tabler/icons-react"
-import { Activity,
-  useState,
-} from "react"
+import { IconChevronDown, IconChevronUp } from "@tabler/icons-react"
+import { Activity, useState } from "react"
 import { Button } from "@/components/ui/base-ui/button"
 import { ScrollArea } from "@/components/ui/base-ui/scroll-area"
 import { Separator } from "@/components/ui/base-ui/separator"
@@ -15,6 +11,7 @@ interface SelectionSourceContentProps {
   defaultExpanded?: boolean
   emptyPlaceholder?: string
   separatorClassName?: string
+  className?: string
 }
 
 export function SelectionSourceContent({
@@ -22,13 +19,14 @@ export function SelectionSourceContent({
   defaultExpanded = false,
   emptyPlaceholder,
   separatorClassName,
+  className,
 }: SelectionSourceContentProps) {
   const [actionsExpanded, setActionsExpanded] = useState(defaultExpanded)
   const displayText = text || emptyPlaceholder || ""
 
   return (
     <>
-      <div className="space-y-2">
+      <div className={cn("space-y-2", className)}>
         <div className="flex items-start justify-between gap-2">
           <ScrollArea
             className="min-w-0 flex-1"
