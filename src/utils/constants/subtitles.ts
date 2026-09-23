@@ -36,6 +36,18 @@ export const PROCESS_LOOK_AHEAD_MS = 60_000
 export const MAX_LOOKAHEAD_RATE = 4
 
 /**
+ * How far ahead of the playhead translation starts working on a cue. A cue
+ * closer than this to the playhead cannot finish translating before it is read,
+ * so requesting it — at feature start or right after landing a seek — only pays
+ * for a translation that arrives after the line has already been shown. Used in
+ * two places: the coordinator keeps this near zone out of the window (those
+ * cues play in the source language), and the dispatcher pulls every deadline
+ * this much earlier so requests fire ahead of playback instead of at it. The
+ * background's own round-trip margin still stacks on top of this.
+ */
+export const TRANSLATE_LEAD_MS = 15_000
+
+/**
  * Seek prefetch. The look-ahead window is sized for steady playback, so after a
  * forward jump the playhead often lands in untranslated territory and the next
  * cues only get requested once playback actually reaches them. When a single

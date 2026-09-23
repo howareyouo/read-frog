@@ -64,9 +64,9 @@ export const videoSubtitlesSchema = z.object({
   requestQueueConfig: requestQueueConfigSchema,
   batchQueueConfig: batchQueueConfigSchema,
   // How far ahead of the playback position subtitles are translated, in seconds.
-  // Defaulted so configs stored before this field still parse. The translation
-  // "lead" (where translation starts ahead of the playhead) is derived from this:
-  // lead = look-ahead / 5, so a bigger look-ahead yields a bigger head start.
+  // Defaulted so configs stored before this field still parse. The window's
+  // near edge is a separate fixed lead (TRANSLATE_LEAD_MS): cues closer than
+  // that to the playhead are skipped because they cannot translate in time.
   translateLookAheadSeconds: z
     .number()
     .min(MIN_TRANSLATE_LOOK_AHEAD_SECONDS)

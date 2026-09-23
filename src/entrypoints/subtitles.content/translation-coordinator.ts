@@ -4,6 +4,7 @@ import {
   MAX_SEEK_PREFETCH_MS,
   MIN_SEEK_JUMP_MS,
   SEEK_PREFETCH_MULTIPLIER,
+  TRANSLATE_LEAD_MS,
   TRANSLATE_TICK_INTERVAL_MS,
 } from "@/utils/constants/subtitles"
 import { effectiveLookAheadMs } from "@/utils/subtitles/lookahead"
@@ -249,9 +250,7 @@ export class TranslationCoordinator {
     // The fragment list is start-sorted, so binary search the earliest eligible
     // cue and stop once the look-ahead bound is passed. Every untranslated cue in
     // the window is enqueued (individually) — how they compose into actual AI
-    // requests is the background BatchQueue's job, not this loop's. When the
-    // look-ahead is 0 the window is empty and nothing is prefetched; the cue
-    // under the playhead is still translated (see `earliestStart`).
+    // requests is the background BatchQueue's job, not this loop's.
     //
     // A forward seek is the one case where the steady-state window is not enough:
     // the window is widened to SEEK_PREFETCH_MULTIPLIER × the jump past the new
@@ -264,11 +263,22 @@ export class TranslationCoordinator {
       const prefetchMs = Math.min(seekJumpMs * SEEK_PREFETCH_MULTIPLIER, MAX_SEEK_PREFETCH_MS)
       latestStart = Math.max(latestStart, currentTimeMs + prefetchMs)
     }
-    // The cue under the playhead belongs in the window too: a backward seek, a
-    // failed round or a throttled prefetch can leave the line the user is
-    // reading untranslated, and a window that starts at `now` skips it forever.
+    // The near zone: a cue closer than TRANSLATE_LEAD_MS to the playhead cannot
+    // finish translating before it is read, so requesting it — at feature start
+    // or right after landing a seek — only pays for a translation that arrives
+    // after the line has already been shown. The window therefore starts a lead
+    // ahead of the playhead and lets those near cues play in the source language
+    // (every cue beyond them was already requested back when it still had the
+    // lead's worth of runway). A look-ahead that does not clear the lead is an
+    // explicit on-demand setting (0 = "current line only"); it keeps the old
+    // window — cue under the playhead included — so such configs still translate.
     const activeCue = findActiveCue(fragments, currentTimeMs)
-    const earliestStart = activeCue ? activeCue.start : currentTimeMs
+    const earliestStart =
+      lookAheadMs > TRANSLATE_LEAD_MS
+        ? currentTimeMs + TRANSLATE_LEAD_MS
+        : activeCue
+          ? activeCue.start
+          : currentTimeMs
     const batch: SubtitlesFragment[] = []
     for (
       let index = lowerBoundByStart(fragments, earliestStart);
@@ -415,15 +425,17 @@ export class TranslationCoordinator {
     })
   }
 
-  private isCueResolved(startMs: number): boolean {
-    return this.translatedStarts.has(startMs) || this.failedStarts.has(startMs)
-  }
-
   private updateLoadingStateAt(timeMs: number, fragments: SubtitlesFragment[]) {
     const activeCue = findActiveCue(fragments, timeMs)
 
     if (activeCue) {
-      const nextState: SubtitlesState = this.isCueResolved(activeCue.start) ? "idle" : "loading"
+      // Only an in-flight request earns the badge. An unresolved cue with no
+      // request in flight sits inside the skipped near zone (see
+      // `translateNearby`): no translation is coming for it, and flagging it
+      // "loading" would spin the badge through the whole lead.
+      const nextState: SubtitlesState = this.translatingStarts.has(activeCue.start)
+        ? "loading"
+        : "idle"
       if (nextState === this.lastEmittedState) return
       this.lastEmittedState = nextState
       this.onStateChange(nextState)

@@ -2,6 +2,7 @@ import { LANG_CODE_TO_EN_NAME } from "@read-frog/definitions"
 import type { Config } from "@/types/config/config"
 import type { SubtitlePromptContext } from "@/types/content"
 import { getLocalConfig } from "@/utils/config/storage"
+import { TRANSLATE_LEAD_MS } from "@/utils/constants/subtitles"
 import { cleanText } from "@/utils/content/utils"
 import { Sha256Hex } from "@/utils/hash"
 import { prepareTranslationText } from "@/utils/host/translate/text-preparation"
@@ -277,9 +278,14 @@ export async function translateSubtitles(
             hash: hashes[index]!,
             // With a playback position the background can hold below-min
             // batches until their earliest cue nears playback; without one
-            // (full-video download) the queue falls back to batchDelay.
+            // (full-video download) the queue falls back to batchDelay. The
+            // deadline is pulled TRANSLATE_LEAD_MS ahead of the cue's
+            // playback time, so the request starts that much earlier and the
+            // translation lands before the line is read instead of after.
             startsInMs:
-              requestedTimeMs === undefined ? undefined : fragment.start - requestedTimeMs,
+              requestedTimeMs === undefined
+                ? undefined
+                : fragment.start - requestedTimeMs - TRANSLATE_LEAD_MS,
           },
         ],
         langConfig,

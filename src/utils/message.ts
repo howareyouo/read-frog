@@ -82,10 +82,11 @@ interface ProtocolMap {
     items: Array<{
       text: string
       hash: string
-      // How far the cue's start is ahead of the playback position, in ms, at
-      // request time. Lets the batch queue hold below-min batches until their
-      // earliest cue nears playback instead of force-flushing at batchDelay.
-      // Absent for full-video downloads (no playback position).
+      // How long until the cue should start being translated, in ms, at
+      // request time (its distance ahead of the playback position, minus the
+      // translate lead). Lets the batch queue hold below-min batches until
+      // their earliest cue nears playback instead of force-flushing at
+      // batchDelay. Absent for full-video downloads (no playback position).
       startsInMs?: number
     }>
     langConfig: Config["language"]

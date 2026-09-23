@@ -940,8 +940,10 @@ export function setUpSubtitlesTranslationQueue(): void {
             langConfig,
             hash: item.hash,
             scheduleAt,
-            // Anchor the urgency deadline at receive time so the batch's hold
-            // window reflects how long the cue actually has before playback.
+            // Anchor the urgency deadline at receive time, pulled ahead by
+            // the translate lead, so the batch's hold window reflects how long
+            // the cue actually has before playback minus the head start the
+            // request needs to land in time.
             dueAt,
             context,
           })
