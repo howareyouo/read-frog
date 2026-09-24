@@ -91,25 +91,3 @@ const domBatcher = new DOMBatcher()
 export function batchDOMOperation(operation: DOMOperation): void {
   domBatcher.queue(operation)
 }
-
-/**
- * Force flush all pending batched operations immediately
- * Useful for testing or when you need operations to complete synchronously
- */
-export function flushBatchedOperations(): void {
-  domBatcher.flushImmediate()
-}
-
-/**
- * Create a DocumentFragment for batch appending multiple nodes
- * This is useful when you need to insert multiple nodes at once
- *
- * @example
- * const fragment = createFragment()
- * fragment.appendChild(child1)
- * fragment.appendChild(child2)
- * batchDOMOperation(() => parent.appendChild(fragment))
- */
-export function createFragment(ownerDocument: Document = document): DocumentFragment {
-  return ownerDocument.createDocumentFragment()
-}

@@ -1,17 +1,19 @@
-import { deepmergeCustom } from "deepmerge-ts"
 import { atom } from "jotai"
 import { selectAtom } from "jotai/utils"
 import type { Config } from "@/types/config/config"
 import { configSchema } from "@/types/config/config"
 import { CONFIG_STORAGE_KEY, DEFAULT_CONFIG } from "../constants/config"
-import { logger } from "../logger"
+import { mergeWithArrayOverwrite } from "../merge"
 import { storageAdapter } from "./storage-adapter"
+import { createSyncedAtom } from "./synced-atom"
 
-export const configAtom = atom<Config>(DEFAULT_CONFIG)
-
-export const mergeWithArrayOverwrite = deepmergeCustom({
-  // Use the last (source) array
-  mergeArrays: (values) => values[values.length - 1],
+export const configAtom = createSyncedAtom(DEFAULT_CONFIG, {
+  load: () => storageAdapter.get<Config>(CONFIG_STORAGE_KEY, DEFAULT_CONFIG, configSchema),
+  subscribe: (onUpdate) => storageAdapter.watch<Config>(CONFIG_STORAGE_KEY, onUpdate),
+  // A storage watch that fires before the initial get() resolves carries the
+  // fresher value — drop the late initial read instead of overwriting it.
+  dropStaleInitialLoad: true,
+  logLabel: "configAtom",
 })
 
 /**
@@ -93,61 +95,6 @@ export const writeConfigAtom = atom(null, async (get, set, patch: Partial<Config
 
   return task
 })
-
-/**
- * Initialize atom state from storage and set up cross-context sync.
- *
- * This handles three sync scenarios:
- * 1. Initial load: Read from storage when atom first mounts
- * 2. Cross-context updates: Watch for changes from other extension contexts (popup, options, etc.)
- * 3. Tab reactivation: Reload when tab becomes visible (inactive tabs may miss watch events)
- */
-configAtom.onMount = (setAtom: (newValue: Config) => void) => {
-  // Flag to avoid race condition: if watch fires before initial get() resolves,
-  // don't overwrite the fresher watch value with the stale get() result.
-  let didReceiveStorageUpdate = false
-
-  // Initial load from storage
-  void storageAdapter
-    .get<Config>(CONFIG_STORAGE_KEY, DEFAULT_CONFIG, configSchema)
-    .then((value) => {
-      if (!didReceiveStorageUpdate) {
-        setAtom(value)
-      }
-    })
-
-  // Watch for changes from other extension contexts (popup, options page, other tabs)
-  const unwatch = storageAdapter.watch<Config>(CONFIG_STORAGE_KEY, (value) => {
-    didReceiveStorageUpdate = true
-    setAtom(value)
-  })
-
-  // Handle tab reactivation - inactive tabs may miss storage watch events,
-  // so we reload from storage when the tab becomes visible again.
-  // See: https://github.com/mengxi-ream/read-frog/issues/435
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === "visible") {
-      logger.info("configAtom onMount handleVisibilityChange when: ", new Date())
-      void storageAdapter
-        .get<Config>(CONFIG_STORAGE_KEY, DEFAULT_CONFIG, configSchema)
-        .then(setAtom)
-    }
-  }
-  document.addEventListener("visibilitychange", handleVisibilityChange)
-
-  return () => {
-    unwatch()
-    document.removeEventListener("visibilitychange", handleVisibilityChange)
-  }
-}
-
-// export const configFieldAtom = <K extends Keys>(key: K) => {
-//   const readAtom = selectAtom(configAtom, (c) => c[key]); // 现在是同步
-//   const writeAtom = atom(null, (_get, set, val: Config[K]) =>
-//     set(writeConfigAtom, { [key]: val })
-//   );
-//   return [readAtom, writeAtom] as const;
-// };
 
 type Keys = keyof Config
 

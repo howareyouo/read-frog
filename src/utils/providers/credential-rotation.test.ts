@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { LLMProviderConfig } from "@/types/config/provider"
 import {
   clearProviderCooldown,
@@ -153,11 +153,19 @@ describe("classifyCredentialFailure", () => {
 
 describe("credentialCooldownRecoveryMs", () => {
   it("reports the soonest recovery among the provider's credentials", () => {
-    const config = makeProviderConfig({ apiKeys: ["key-b"] })
-    markCredentialCoolingDown(config, { apiKey: "key-a" }, "rate-limit", 60_000)
-    markCredentialCoolingDown(config, { apiKey: "key-b" }, "rate-limit", 12_000)
+    // The windows are stamped with Date.now() and re-derived from it on read:
+    // freeze the clock so a scheduler tick between the two calls cannot shave
+    // a millisecond off the expected window.
+    vi.useFakeTimers()
+    try {
+      const config = makeProviderConfig({ apiKeys: ["key-b"] })
+      markCredentialCoolingDown(config, { apiKey: "key-a" }, "rate-limit", 60_000)
+      markCredentialCoolingDown(config, { apiKey: "key-b" }, "rate-limit", 12_000)
 
-    expect(credentialCooldownRecoveryMs(config)).toBe(12_000)
+      expect(credentialCooldownRecoveryMs(config)).toBe(12_000)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("is 0 when nothing is cooling", () => {

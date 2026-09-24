@@ -28,7 +28,6 @@ const languageSchema = z.object({
 
 const selectionToolbarFeatureSchema = z.object({
   enabled: z.boolean(),
-  providerId: z.string().nonempty(),
   providerIds: z.array(z.string()).default([]),
   shortcut: pageTranslationShortcutSchema,
 })
@@ -65,7 +64,6 @@ const inputTranslationLangSchema = z.union([
 // input translation schema (triple-space trigger)
 const inputTranslationSchema = z.object({
   enabled: z.boolean(),
-  providerId: z.string().nonempty(),
   providerIds: z.array(z.string()).default([]),
   fromLang: inputTranslationLangSchema,
   toLang: inputTranslationLangSchema,
@@ -111,29 +109,13 @@ export const configSchema = z
   .superRefine((data, ctx) => {
     for (const featureKey of FEATURE_KEYS) {
       const def = FEATURE_PROVIDER_DEFS[featureKey]
-      const providerId = def.getProviderId(data)
 
-      if (
-        !doesProviderSupportsCapability(featureKey, data.providersConfig, providerId, {
-          requireEnable: true,
-        })
-      ) {
-        ctx.addIssue({
-          code: "invalid_value",
-          values: getProviderIdsForCapability(featureKey, data.providersConfig, {
-            requireEnable: true,
-          }),
-          message: `Invalid provider id "${providerId}".`,
-          path: [...def.configPath],
-        })
-      }
-
-      // Every id in the multi-select must also be a usable provider for the
-      // feature; ids the user removes from providersConfig are pruned by the
-      // UI, but a stale id could otherwise silently survive in the rotation.
-      def.getProviderIds(data).forEach((multiId, index) => {
+      // Every selected id must be a usable provider for the feature; ids the
+      // user removes from providersConfig are pruned by the UI, but a stale id
+      // could otherwise silently survive in the rotation.
+      def.getProviderIds(data).forEach((providerId, index) => {
         if (
-          !doesProviderSupportsCapability(featureKey, data.providersConfig, multiId, {
+          !doesProviderSupportsCapability(featureKey, data.providersConfig, providerId, {
             requireEnable: true,
           })
         ) {
@@ -142,7 +124,7 @@ export const configSchema = z
             values: getProviderIdsForCapability(featureKey, data.providersConfig, {
               requireEnable: true,
             }),
-            message: `Invalid provider id "${multiId}".`,
+            message: `Invalid provider id "${providerId}".`,
             path: [...def.providerIdsConfigPath, index],
           })
         }

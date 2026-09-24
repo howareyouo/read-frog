@@ -36,9 +36,16 @@ function renderTwoButtons() {
 
 const spinnerClass = "animate-bounce"
 
-function isTesting(container: HTMLElement, index: number) {
+function getButton(container: HTMLElement, index: number) {
   const button = container.querySelectorAll("button")[index]
-  return button.querySelector(`.${spinnerClass}`) !== null
+  if (!button) {
+    throw new Error(`button ${index} not found`)
+  }
+  return button
+}
+
+function isTesting(container: HTMLElement, index: number) {
+  return getButton(container, index).querySelector(`.${spinnerClass}`) !== null
 }
 
 afterEach(cleanup)
@@ -48,7 +55,7 @@ describe("ModelTestButton repro", () => {
     const { container } = renderTwoButtons()
 
     // click test on model A (first button)
-    fireEvent.click(container.querySelectorAll("button")[0])
+    fireEvent.click(getButton(container, 0))
     await waitFor(() => expect(isTesting(container, 0)).toBe(true))
 
     // let a render pass
@@ -56,7 +63,7 @@ describe("ModelTestButton repro", () => {
     expect(isTesting(container, 0)).toBe(true)
 
     // click test on model B (second button)
-    fireEvent.click(container.querySelectorAll("button")[1])
+    fireEvent.click(getButton(container, 1))
     await waitFor(() => expect(isTesting(container, 1)).toBe(true))
 
     // A should still be testing

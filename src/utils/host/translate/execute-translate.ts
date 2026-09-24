@@ -12,6 +12,16 @@ import { microsoftTranslate } from "./api/microsoft"
 import { prepareTranslationText } from "./text-preparation"
 import { normalizeTranslationOutput } from "./translation-output-normalization"
 
+function resolveLangPair(langConfig: Config["language"]) {
+  const sourceLang =
+    langConfig.sourceCode === "auto" ? "auto" : (ISO6393_TO_6391[langConfig.sourceCode] ?? "auto")
+  const targetLang = ISO6393_TO_6391[langConfig.targetCode]
+  if (!targetLang) {
+    throw new Error(`Invalid target language code: ${langConfig.targetCode}`)
+  }
+  return { sourceLang, targetLang } as const
+}
+
 export async function executeTranslate<TContext>(
   text: string,
   langConfig: Config["language"],
@@ -40,12 +50,7 @@ export async function executeTranslate<TContext>(
   let translatedText = ""
 
   if (isNonAPIProvider(provider)) {
-    const sourceLang =
-      langConfig.sourceCode === "auto" ? "auto" : (ISO6393_TO_6391[langConfig.sourceCode] ?? "auto")
-    const targetLang = ISO6393_TO_6391[langConfig.targetCode]
-    if (!targetLang) {
-      throw new Error(`Invalid target language code: ${langConfig.targetCode}`)
-    }
+    const { sourceLang, targetLang } = resolveLangPair(langConfig)
     if (provider === "google-translate") {
       translatedText = await googleTranslate(preparedText, sourceLang, targetLang, {
         textFormat: options?.textFormat,
@@ -59,12 +64,7 @@ export async function executeTranslate<TContext>(
       })
     }
   } else if (isPureAPIProvider(provider)) {
-    const sourceLang =
-      langConfig.sourceCode === "auto" ? "auto" : (ISO6393_TO_6391[langConfig.sourceCode] ?? "auto")
-    const targetLang = ISO6393_TO_6391[langConfig.targetCode]
-    if (!targetLang) {
-      throw new Error(`Invalid target language code: ${langConfig.targetCode}`)
-    }
+    const { sourceLang, targetLang } = resolveLangPair(langConfig)
     if (provider === "deeplx") {
       translatedText = await deeplxTranslate(preparedText, sourceLang, targetLang, providerConfig, {
         textFormat: options?.textFormat,

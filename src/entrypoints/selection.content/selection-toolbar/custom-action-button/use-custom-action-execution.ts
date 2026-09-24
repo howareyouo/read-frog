@@ -1,11 +1,8 @@
 import { LANG_CODE_TO_EN_NAME } from "@read-frog/definitions"
 import type { JSONValue } from "ai"
 import type { RefObject } from "react"
-import { useCallback, useContext, useEffect, useRef, useState } from "react"
-import type {
-  BackgroundStructuredObjectStreamSnapshot,
-  ThinkingSnapshot,
-} from "@/types/background-stream"
+import { useCallback, useEffect, useRef, useState } from "react"
+import type { BackgroundStructuredObjectStreamSnapshot } from "@/types/background-stream"
 import type { AISDKReasoning } from "@/types/config/provider"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
 import { streamBackgroundStructuredObject } from "@/utils/content-script/background-stream-client"
@@ -22,11 +19,8 @@ import {
   replaceSelectionToolbarCustomActionPromptTokens,
 } from "../custom-action-prompt"
 import type { SelectionToolbarInlineError } from "../inline-error"
-import {
-  createSelectionToolbarPrecheckError,
-  createSelectionToolbarRuntimeError,
-  isAbortError,
-} from "../inline-error"
+import { createSelectionToolbarPrecheckError } from "../inline-error"
+import { useStreamingLlmTask } from "../use-streaming-llm-task"
 
 export interface CustomActionExecutionContext {
   action: SelectionToolbarCustomAction
@@ -286,10 +280,8 @@ export function useCustomActionExecution({
   popoverSessionKey: number
   rerunNonce: number
 }) {
-  const [isRunning, setIsRunning] = useState(false)
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
-  const [error, setError] = useState<SelectionToolbarInlineError | null>(null)
-  const [thinking, setThinking] = useState<ThinkingSnapshot | null>(null)
+  const { error, isRunning, task, thinking } = useStreamingLlmTask()
   const lastRunKeyRef = useRef<string | null>(null)
   const bodyRefRef = useRef(bodyRef)
   bodyRefRef.current = bodyRef
@@ -305,11 +297,9 @@ export function useCustomActionExecution({
   const executionRequestKey = executionRequest?.key ?? null
 
   const resetSessionState = useCallback(() => {
-    setIsRunning(false)
+    task.resetTask()
     setResult(null)
-    setError(null)
-    setThinking(null)
-  }, [])
+  }, [task])
 
   useEffect(() => {
     if (!open || !executionRequestKey) {
@@ -326,63 +316,48 @@ export function useCustomActionExecution({
     }
     lastRunKeyRef.current = executionRequestKey
 
-    let isCancelled = false
+    const runId = task.allocateRun()
     const abortController = new AbortController()
+    task.registerAbortController(abortController)
 
     const run = async () => {
-      setIsRunning(true)
+      task.beginTask(runId)
+      task.updateThinking(runId, { status: "thinking", text: "" })
       setResult(null)
-      setError(null)
-      setThinking({
-        status: "thinking",
-        text: "",
-      })
 
       try {
         const finalResult = await streamBackgroundStructuredObject(request.payload, {
           signal: abortController.signal,
           onChunk: (partial: BackgroundStructuredObjectStreamSnapshot) => {
-            if (isCancelled) {
+            if (!task.isCurrentRun(runId)) {
               return
             }
 
             setResult(partial.output)
-            setThinking(partial.thinking)
+            task.updateThinking(runId, partial.thinking)
             scrollSelectionPopoverBodyToBottom(bodyRefRef.current)
           },
         })
 
-        if (isCancelled) {
+        if (!task.isCurrentRun(runId)) {
           return
         }
 
         setResult(finalResult.output)
-        setThinking(finalResult.thinking)
+        task.updateThinking(runId, finalResult.thinking)
       } catch (caughtError) {
-        if (isAbortError(caughtError)) {
-          return
-        }
-
-        if (isCancelled) {
-          return
-        }
-
-        setThinking((prev) => (prev?.text ? { ...prev, status: "complete" } : null))
-        setError(createSelectionToolbarRuntimeError("customAction", caughtError))
+        task.reportFailure(runId, "customAction", caughtError)
       } finally {
-        if (!isCancelled) {
-          setIsRunning(false)
-        }
+        task.endRun(runId)
       }
     }
 
     void run()
 
     return () => {
-      isCancelled = true
-      abortController.abort()
+      task.cancelRun(runId)
     }
-  }, [executionRequestKey, open])
+  }, [executionRequestKey, open, task])
 
   useEffect(() => {
     if (!open) {

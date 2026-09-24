@@ -9,8 +9,6 @@ import {
 } from "@/utils/constants/dom-labels"
 import {
   GIANT_PARAGRAPH_MAX_SPLIT_DEPTH,
-  GIANT_PARAGRAPH_SPLIT_MIN_VIEWPORT_PX,
-  GIANT_PARAGRAPH_SPLIT_VIEWPORT_MULTIPLIER,
   GIANT_SPLIT_STRANDED_TEXT_MAX_UNITS,
 } from "@/utils/constants/translate"
 import { getRandomUUID } from "@/utils/crypto-polyfill"
@@ -32,7 +30,10 @@ import {
   wasCharacterDataChangeExtensionDriven,
   wasNodeRemovedByExtension,
 } from "@/utils/host/translate/core/translation-state"
-import { canSplitParagraphIntoDescendants } from "@/utils/host/translate/dom/paragraph-segmentation"
+import {
+  canSplitParagraphIntoDescendants,
+  isGiantParagraphUnit,
+} from "@/utils/host/translate/dom/paragraph-segmentation"
 import {
   removeAllTranslatedWrapperNodes,
   translateNodes,
@@ -40,7 +41,6 @@ import {
   translateWalkedElement,
 } from "@/utils/host/translate/node-manipulation"
 import { validateTranslationConfigAndToast } from "@/utils/host/translate/translate-text"
-import { translateTextForPageTitle } from "@/utils/host/translate/translate-variants"
 import {
   beginPageTranslationSession,
   endPageTranslationSession,
@@ -48,14 +48,13 @@ import {
 import { cleanupNodeSiteRuleCSSIfUnused } from "@/utils/host/translate/ui/node-site-rule-css"
 import { cancelSpinnerAnimation } from "@/utils/host/translate/ui/spinner"
 import { ensureSiteRuleCSS, removeSiteRuleCSS } from "@/utils/host/translate/ui/style-injector"
-import { getOrCreateWebPageContext } from "@/utils/host/translate/webpage-context"
 import { logger } from "@/utils/logger"
 import { sendMessage } from "@/utils/message"
 import { resolvePageTranslationProviderOrNull } from "@/utils/providers/provider-ref"
 import { removeReactShadowHost } from "@/utils/react-shadow-host/create-shadow-host"
-import { isTranslationCancelledError } from "@/utils/request/cancellation"
 import { createWorkPacer } from "@/utils/scheduler"
 import { getEffectiveSiteRule } from "@/utils/site-rules/effective"
+import { TitleTranslator } from "./title-translator"
 
 type SimpleIntersectionOptions = Omit<IntersectionObserverInit, "threshold"> & {
   threshold?: number
@@ -142,10 +141,7 @@ export class PageTranslationManager implements IPageTranslationManager {
   private translationSessionVersion = 0
   /** Pending initial chunked walk; mutation handling serializes behind it. */
   private initialWalkDone: Promise<void> | null = null
-  private titleObserver: MutationObserver | null = null
-  private lastSourceTitle: string | null = null
-  private lastAppliedTranslatedTitle: string | null = null
-  private titleRequestVersion = 0
+  private titleTranslator = new TitleTranslator(() => this.isPageTranslating)
 
   constructor(intersectionOptions: SimpleIntersectionOptions = {}) {
     if (intersectionOptions.threshold !== undefined) {
@@ -254,13 +250,13 @@ export class PageTranslationManager implements IPageTranslationManager {
     // the main-content extraction out of setup and into the first
     // translation call, where it blocks the first visible paragraph and
     // janks the main thread on a long page.
-    await this.primeDocumentTitleContext(
+    await this.titleTranslator.primeDocumentTitleContext(
       config.pageTranslation.enableAIContentAware && isLLMProviderConfig(providerConfig),
     )
     if (this.translationSessionVersion !== sessionVersion) {
       return
     }
-    this.startDocumentTitleTracking()
+    this.titleTranslator.startDocumentTitleTracking()
 
     // Listen to existing elements when they enter the viewport
     const walkId = getRandomUUID()
@@ -399,7 +395,7 @@ export class PageTranslationManager implements IPageTranslationManager {
     this.pendingRetranslateRetries.clear()
     this.retranslateRetries = new WeakMap()
     this.retranslationBudgets = new WeakMap()
-    this.stopDocumentTitleTracking()
+    this.titleTranslator.stopDocumentTitleTracking()
 
     if (this.intersectionObserver) {
       this.intersectionObserver.disconnect()
@@ -466,129 +462,6 @@ export class PageTranslationManager implements IPageTranslationManager {
       document.removeEventListener("touchmove", onMove)
       document.removeEventListener("touchend", onEnd)
       document.removeEventListener("touchcancel", reset)
-    }
-  }
-
-  private shouldManageDocumentTitle(): boolean {
-    return window === window.top
-  }
-
-  private async primeDocumentTitleContext(shouldPrimeWebPageContext: boolean): Promise<void> {
-    if (!this.shouldManageDocumentTitle() || !shouldPrimeWebPageContext) {
-      return
-    }
-
-    try {
-      await getOrCreateWebPageContext()
-    } catch (error) {
-      logger.warn("Failed to prime webpage context before translating document title:", error)
-    }
-  }
-
-  private startDocumentTitleTracking(): void {
-    if (!this.shouldManageDocumentTitle()) {
-      return
-    }
-
-    this.lastSourceTitle = document.title || ""
-    this.lastAppliedTranslatedTitle = null
-    this.titleRequestVersion = 0
-
-    this.observeDocumentTitle()
-    void this.syncDocumentTitle(this.lastSourceTitle)
-  }
-
-  private stopDocumentTitleTracking(): void {
-    if (!this.shouldManageDocumentTitle()) {
-      return
-    }
-
-    const currentTitle = document.title || ""
-    if (currentTitle !== this.lastAppliedTranslatedTitle) {
-      this.lastSourceTitle = currentTitle
-    }
-
-    if (this.titleObserver) {
-      this.titleObserver.disconnect()
-      this.titleObserver = null
-    }
-
-    this.titleRequestVersion++
-
-    if (this.lastSourceTitle !== null && document.title !== this.lastSourceTitle) {
-      document.title = this.lastSourceTitle
-    }
-
-    this.lastSourceTitle = null
-    this.lastAppliedTranslatedTitle = null
-  }
-
-  private observeDocumentTitle(): void {
-    if (!document.head) {
-      return
-    }
-
-    if (this.titleObserver) {
-      this.titleObserver.disconnect()
-    }
-
-    this.titleObserver = new MutationObserver(() => {
-      this.handleDocumentTitleMutation()
-    })
-
-    this.titleObserver.observe(document.head, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    })
-  }
-
-  private handleDocumentTitleMutation(): void {
-    if (!this.isPageTranslating || !this.shouldManageDocumentTitle()) {
-      return
-    }
-
-    const currentTitle = document.title || ""
-
-    if (currentTitle === this.lastSourceTitle) {
-      return
-    }
-
-    if (currentTitle === this.lastAppliedTranslatedTitle) {
-      return
-    }
-
-    this.lastSourceTitle = currentTitle
-    void this.syncDocumentTitle(currentTitle)
-  }
-
-  private async syncDocumentTitle(sourceTitle: string): Promise<void> {
-    if (!sourceTitle.trim() || !this.isPageTranslating || !this.shouldManageDocumentTitle()) {
-      return
-    }
-
-    const requestVersion = ++this.titleRequestVersion
-
-    try {
-      const translatedTitle = await translateTextForPageTitle(sourceTitle)
-      if (!this.isPageTranslating || requestVersion !== this.titleRequestVersion) {
-        return
-      }
-
-      const nextTitle = translatedTitle || sourceTitle
-      this.lastAppliedTranslatedTitle = nextTitle
-
-      if (document.title === nextTitle) {
-        return
-      }
-
-      document.title = nextTitle
-    } catch (error) {
-      // A cancelled session's title request rejecting is expected, not noise.
-      if (isTranslationCancelledError(error)) return
-      if (requestVersion === this.titleRequestVersion) {
-        logger.warn("Failed to translate document title:", error)
-      }
     }
   }
 
@@ -676,13 +549,7 @@ export class PageTranslationManager implements IPageTranslationManager {
     const observer = this.intersectionObserver
     if (!observer) return
 
-    const maxUnitHeight =
-      Math.max(window.innerHeight, GIANT_PARAGRAPH_SPLIT_MIN_VIEWPORT_PX) *
-      GIANT_PARAGRAPH_SPLIT_VIEWPORT_MULTIPLIER
-    if (
-      depth >= GIANT_PARAGRAPH_MAX_SPLIT_DEPTH ||
-      element.getBoundingClientRect().height <= maxUnitHeight
-    ) {
+    if (depth >= GIANT_PARAGRAPH_MAX_SPLIT_DEPTH || !isGiantParagraphUnit(element)) {
       observer.observe(element)
       return
     }

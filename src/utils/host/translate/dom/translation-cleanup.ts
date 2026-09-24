@@ -280,7 +280,7 @@ export function dropTranslationOnlySwapRecordsForNodes(
     state,
     state.swaps.filter(
       (record) =>
-        swapRecordIntersectsNodes(record, nodes) || isTranslationOnlySwapRecordDead(record),
+        swapRecordIntersectsNodes(record, nodes, anchor) || isTranslationOnlySwapRecordDead(record),
     ),
   )
   finalizeTranslationOnlyAnchorIfEmpty(state)
@@ -324,7 +324,7 @@ export function restoreTranslationOnlySwapsForAnchor(
   dropTranslationOnlySwapRecords(state, deadRecords)
 
   const toRestore = state.swaps.filter(
-    (record) => !filterNodes || swapRecordIntersectsNodes(record, filterNodes),
+    (record) => !filterNodes || swapRecordIntersectsNodes(record, filterNodes, anchor),
   )
   if (toRestore.length === 0) {
     finalizeTranslationOnlyAnchorIfEmpty(state)

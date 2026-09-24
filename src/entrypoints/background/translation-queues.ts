@@ -34,7 +34,11 @@ import { onMessage } from "@/utils/message"
 import { getSubtitlesTranslatePrompt } from "@/utils/prompts/subtitles"
 import { getTranslatePrompt } from "@/utils/prompts/translate"
 import {
+  apiKeyCooldownId,
   classifyCredentialFailure,
+  listProviderApiKeys,
+  listProviderModelIds,
+  modelIdCooldownId,
 } from "@/utils/providers/credential-rotation"
 import {
   getUsableFeatureProviderIds,
@@ -191,14 +195,6 @@ export async function executeBatchTranslation<TContext>(
 }
 
 /**
- * What a failure says about the credential that produced it, or nothing when
- * it says nothing about that — shared with the credential-level rotation (see
- * `classifyCredentialFailure`): the same taxonomy decides both which provider
- * to fail over to and which key/model to park.
- */
-const classifyProviderFailure = classifyCredentialFailure
-
-/**
  * Send one subtitles request across the feature's provider list.
  *
  * The user selected several providers so that one running out of quota is not
@@ -251,7 +247,7 @@ export async function executeWithProviderFailover<T>(args: {
       clearProviderCooldown(providerId)
       return result
     } catch (error) {
-      const failure = classifyProviderFailure(error)
+      const failure = classifyCredentialFailure(error)
       if (!failure) throw error
       markProviderCoolingDown(providerId, failure.reason, failure.retryAfterMs)
       lastError = error
@@ -454,7 +450,55 @@ async function createTranslationQueues<TContext>(config: TranslationQueueSetupCo
     maxRetries: 2,
     baseRetryDelayMs: 1_000,
   })
-  const batchQueue = new BatchQueue<TranslateBatchData<TContext>, string>({
+
+  /**
+   * Send one queued translation: webpage requests go straight to the per-item
+   * provider the content script resolved (the one its cache hashes were built
+   * for), while subtitles requests fail over across the feature's provider
+   * list — seeded with the batch's flush-time provider — parking each refuser
+   * (see executeWithProviderFailover). Shared by the batch and per-item
+   * fallback paths, which differ only in what `send` does per provider and
+   * how many requests the batch record counts.
+   */
+  async function runWithSubtitleFailover<T>(
+    seedProvider: QueuedTranslationProvider | undefined,
+    originalRequestCount: number,
+    send: (provider: QueuedTranslationProvider, signal?: AbortSignal) => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const recordAndSend = async (provider: QueuedTranslationProvider): Promise<T> => {
+      await putBatchRequestRecord({
+        originalRequestCount,
+        providerConfig: getLocalProviderConfig(provider),
+      })
+      return await send(provider, signal)
+    }
+    if (queueName !== "subtitles") {
+      // Webpage items always carry their own provider (the batch key and the
+      // cache hashes are built from it); only subtitles can arrive seedless.
+      return await recordAndSend(seedProvider!)
+    }
+    const config = await ensureInitializedConfig()
+    if (!config) {
+      throw new Error("Config unavailable for subtitles translation")
+    }
+    return await executeWithProviderFailover({
+      config,
+      requireLLM: true,
+      seed: seedProvider,
+      signal,
+      run: recordAndSend,
+    })
+  }
+
+  const batchQueue = new BatchQueue<
+    TranslateBatchData<TContext>,
+    string,
+    // The resolved provider may be nullish when nothing is selectable (the
+    // `?? data.provider` fallbacks in executeBatch/executeIndividual handle
+    // that), so the slot type carries it.
+    QueuedTranslationProvider | null | undefined
+  >({
     ...batchQueueRuntimeConfig,
     maxRetries: maxRetries ?? 3,
     enableFallbackToIndividual: true,
@@ -502,9 +546,7 @@ async function createTranslationQueues<TContext>(config: TranslationQueueSetupCo
       // moves to the next one in the list when that provider refuses.
       // Webpage: falls through to the per-item provider the content script
       // resolved, which its cache key was built for, so it never rotates.
-      const seedProvider = ((await meta.provider) ?? dataList[0]!.provider) as
-        | QueuedTranslationProvider
-        | undefined
+      const seedProvider = (await meta.provider) ?? dataList[0]!.provider
       if (queueName !== "subtitles" && !seedProvider) {
         throw new Error("No translation provider available for batch")
       }
@@ -516,29 +558,13 @@ async function createTranslationQueues<TContext>(config: TranslationQueueSetupCo
         MAX_BATCH_TIMEOUT_MS,
       )
 
-      const batchThunk = async (signal?: AbortSignal): Promise<string[]> => {
-        const send = async (provider: QueuedTranslationProvider) => {
-          await putBatchRequestRecord({
-            originalRequestCount: dataList.length,
-            providerConfig: getLocalProviderConfig(provider),
-          })
-          return await executeBatchTranslation(dataList, provider, promptResolver, signal)
-        }
-        if (queueName !== "subtitles") {
-          return await send(seedProvider!)
-        }
-        const config = await ensureInitializedConfig()
-        if (!config) {
-          throw new Error("Config unavailable for subtitles translation")
-        }
-        return await executeWithProviderFailover({
-          config,
-          requireLLM: true,
-          seed: seedProvider,
+      const batchThunk = async (signal?: AbortSignal): Promise<string[]> =>
+        runWithSubtitleFailover(
+          seedProvider,
+          dataList.length,
+          (provider, signal) => executeBatchTranslation(dataList, provider, promptResolver, signal),
           signal,
-          run: send,
-        })
-      }
+        )
 
       // Earliest cue deadline → request-queue priority, so a batch whose cues
       // are about to play jumps ahead of far-future prefetched batches (P7).
@@ -554,33 +580,18 @@ async function createTranslationQueues<TContext>(config: TranslationQueueSetupCo
     },
     executeIndividual: async (data, meta) => {
       const { text, langConfig, hash, scheduleAt, context, scope } = data
-      const seedProvider = ((await meta.provider) ?? data.provider) as QueuedTranslationProvider
-      const thunk = async (signal?: AbortSignal) => {
-        const send = async (provider: QueuedTranslationProvider) => {
-          await putBatchRequestRecord({
-            originalRequestCount: 1,
-            providerConfig: getLocalProviderConfig(provider),
-          })
-          return executeQueuedTranslation(text, langConfig, provider, promptResolver, {
-            context,
-            signal,
-          })
-        }
-        if (queueName !== "subtitles") {
-          return await send(seedProvider)
-        }
-        const config = await ensureInitializedConfig()
-        if (!config) {
-          throw new Error("Config unavailable for subtitles translation")
-        }
-        return await executeWithProviderFailover({
-          config,
-          requireLLM: true,
-          seed: seedProvider,
+      const seedProvider = (await meta.provider) ?? data.provider
+      const thunk = async (signal?: AbortSignal) =>
+        runWithSubtitleFailover(
+          seedProvider,
+          1,
+          (provider, signal) =>
+            executeQueuedTranslation(text, langConfig, provider, promptResolver, {
+              context,
+              signal,
+            }),
           signal,
-          run: send,
-        })
-      }
+        )
       return requestQueue.enqueue(thunk, scheduleAt, hash, scope ? [scope] : undefined)
     },
     onError: (error, context) => {
@@ -842,16 +853,53 @@ export function setUpWebPageTranslationQueue(): void {
  * different service as far as a cooldown is concerned. Without this, fixing a
  * typo'd key would still cost up to a minute of being skipped, which reads as
  * "the extension ignores what I just changed".
+ *
+ * Only EDITED rows are invalidated (an earlier version cleared every provider
+ * on any providersConfig change, discarding cooldowns untouched rows had
+ * earned). A row's entries live under its plain id AND under the composite
+ * credential ids its keys/models can occupy — both the previous and the next
+ * values, so a removed key's parked entry is dropped too (see
+ * credential-rotation for the composite id scheme).
  */
+function clearProviderCooldownEntries(
+  providerId: string,
+  previous: ProviderConfig | undefined,
+  next: ProviderConfig | undefined,
+): void {
+  clearProviderCooldown(providerId)
+  for (const providerConfig of [previous, next]) {
+    if (!providerConfig || !isLLMProviderConfig(providerConfig)) continue
+    for (const apiKey of listProviderApiKeys(providerConfig)) {
+      clearProviderCooldown(apiKeyCooldownId(providerId, apiKey))
+    }
+    for (const modelId of listProviderModelIds(providerConfig)) {
+      clearProviderCooldown(modelIdCooldownId(providerId, modelId))
+    }
+  }
+}
+
 function watchProviderConfigForCooldownReset(): void {
-  let lastProvidersJson: string | null = null
+  let lastProvidersConfig: ProviderConfig[] | null = null
   storage.watch<Config>(`local:${CONFIG_STORAGE_KEY}`, (newConfig) => {
     if (!newConfig?.providersConfig) return
-    const json = JSON.stringify(newConfig.providersConfig)
-    if (lastProvidersJson !== null && json !== lastProvidersJson) {
-      clearProviderCooldown()
+    const nextProvidersConfig = newConfig.providersConfig
+    if (lastProvidersConfig !== null) {
+      const lastById = new Map(lastProvidersConfig.map((provider) => [provider.id, provider]))
+      const nextById = new Map(nextProvidersConfig.map((provider) => [provider.id, provider]))
+      for (const [id, lastProvider] of lastById) {
+        const nextProvider = nextById.get(id)
+        if (nextProvider && JSON.stringify(nextProvider) === JSON.stringify(lastProvider)) {
+          continue
+        }
+        clearProviderCooldownEntries(id, lastProvider, nextProvider)
+      }
+      for (const [id, nextProvider] of nextById) {
+        if (!lastById.has(id)) {
+          clearProviderCooldownEntries(id, undefined, nextProvider)
+        }
+      }
     }
-    lastProvidersJson = json
+    lastProvidersConfig = nextProvidersConfig
   })
 }
 

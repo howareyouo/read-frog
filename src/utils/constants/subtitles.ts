@@ -45,7 +45,7 @@ export const MAX_LOOKAHEAD_RATE = 4
  * this much earlier so requests fire ahead of playback instead of at it. The
  * background's own round-trip margin still stacks on top of this.
  */
-export const TRANSLATE_LEAD_MS = 15_000
+export const TRANSLATE_LEAD_MS = 30_000
 
 /**
  * Seek prefetch. The look-ahead window is sized for steady playback, so after a

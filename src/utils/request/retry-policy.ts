@@ -51,7 +51,6 @@ export const MAX_RATE_LIMIT_RETRIES_PER_TASK = 8
 
 interface RetryAwareError {
   [REQUEST_ERROR_META]?: RequestErrorMeta
-  requestErrorMeta?: RequestErrorMeta
   statusCode?: unknown
   status?: unknown
   response?: unknown
@@ -80,7 +79,7 @@ export function attachRequestErrorMeta<T extends Error>(error: T, meta: RequestE
 
 export function getRequestErrorMeta(error: unknown): RequestErrorMeta {
   const source = isObject(error) ? (error as RetryAwareError) : undefined
-  const attachedMeta = source?.[REQUEST_ERROR_META] ?? source?.requestErrorMeta
+  const attachedMeta = source?.[REQUEST_ERROR_META]
   const response = isObject(source?.response) ? (source.response as RetryAwareError) : undefined
 
   const statusCode = normalizeStatusCode(
@@ -135,18 +134,6 @@ export function getHeaderValue(headers: unknown, key: string): string | undefine
 
   const normalizedKey = key.toLowerCase()
 
-  if (Array.isArray(headers)) {
-    const entry = headers.find((header): header is [unknown, unknown] => {
-      return (
-        Array.isArray(header) &&
-        header.length >= 2 &&
-        String(header[0]).toLowerCase() === normalizedKey
-      )
-    })
-    const value = entry?.[1]
-    return typeof value === "string" ? value : undefined
-  }
-
   if (isObject(headers)) {
     const entry = Object.entries(headers).find(
       ([headerKey]) => headerKey.toLowerCase() === normalizedKey,
@@ -186,7 +173,7 @@ export const defaultRequestRetryPolicy: RequestRetryPolicy = {
       }
       const retryAfterMs = getRetryAfterMs(meta, context.now)
       const backoffMs = RATE_LIMIT_BASE_PAUSE_MS * 2 ** context.consecutiveRateLimits
-      const pauseMs = clampRetryDelay(Math.max(retryAfterMs ?? 0, withJitter(backoffMs, false)))
+      const pauseMs = clampRetryDelay(Math.max(retryAfterMs ?? 0, withJitter(backoffMs)))
       return { action: "pause-and-retry", pauseMs }
     }
 
@@ -195,7 +182,7 @@ export const defaultRequestRetryPolicy: RequestRetryPolicy = {
     }
 
     const baseDelayMs = context.baseRetryDelayMs * 2 ** context.retryCount
-    const delayMs = clampRetryDelay(withJitter(baseDelayMs, false))
+    const delayMs = clampRetryDelay(withJitter(baseDelayMs))
 
     return { action: "retry", delayMs }
   },
@@ -284,20 +271,6 @@ function normalizeHeaders(headers: unknown): RequestErrorMeta["responseHeaders"]
     return headers
   }
 
-  if (Array.isArray(headers)) {
-    const normalized: Record<string, string> = {}
-    for (const entry of headers) {
-      if (!Array.isArray(entry) || entry.length < 2) {
-        continue
-      }
-      const [key, value] = entry
-      if (typeof key === "string" && typeof value === "string") {
-        normalized[key] = value
-      }
-    }
-    return Object.keys(normalized).length > 0 ? normalized : undefined
-  }
-
   if (isObject(headers)) {
     const normalized: Record<string, string> = {}
     for (const [key, value] of Object.entries(headers)) {
@@ -378,10 +351,7 @@ function isObject(value: unknown): value is object {
   return typeof value === "object" && value !== null
 }
 
-function withJitter(delayMs: number, disabled: boolean): number {
-  if (disabled) {
-    return delayMs
-  }
+function withJitter(delayMs: number): number {
   return delayMs + Math.random() * 0.1 * delayMs
 }
 

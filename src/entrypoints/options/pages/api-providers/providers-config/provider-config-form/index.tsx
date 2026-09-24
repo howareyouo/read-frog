@@ -17,7 +17,7 @@ import {
   findFeatureMissingProvider,
 } from "@/utils/config/helpers"
 import {
-  buildFeatureProviderPatch,
+  buildFeatureProviderIdsPatch,
   getFeatureLabelI18nKey,
 } from "@/utils/constants/feature-providers"
 import { getSelectionToolbarActions } from "@/utils/custom-actions"
@@ -162,7 +162,7 @@ function EditableProviderConfig({ providerConfig }: { providerConfig: APIProvide
       config,
       updatedAllProviders,
     )
-    let patch = buildFeatureProviderPatch(fallbacks)
+    let patch = buildFeatureProviderIdsPatch(fallbacks)
     if (updatedSelectionToolbar) {
       patch = {
         ...patch,

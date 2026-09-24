@@ -85,15 +85,11 @@ async function mountSelectionUI(ctx: ContentScriptContext) {
 }
 
 /**
- * Selection UI bootstrap, shared by the merged host content entrypoint.
- * Runs on top frames (manifest injection) and in iframes the background has
- * flagged via the selection runtime flag.
+ * Selection UI bootstrap, run by the selection.content entrypoint (manifest
+ * injection on top frames, programmatic background injection for full-runtime
+ * iframes). The double-injection guard lives in the entrypoint's gate.
  */
 export async function bootstrapSelectionContent(ctx: ContentScriptContext, config: Config | null) {
-  // Prevent double injection (manifest-based + programmatic injection)
-  if (window.__READ_FROG_SELECTION_INJECTED__) return
-  window.__READ_FROG_SELECTION_INJECTED__ = true
-
   ctx.onInvalidated(() => {
     window.__READ_FROG_SELECTION_INJECTED__ = false
     clearEffectiveSiteControlUrl()

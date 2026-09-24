@@ -14,7 +14,7 @@ import { executeWithProviderFailover } from "./translation-queues"
 // the feature's provider ids and each provider's id/enabled/capability.
 function makeConfig(ids: string[]): Config {
   return {
-    videoSubtitles: { providerIds: ids, providerId: ids[0] },
+    videoSubtitles: { providerIds: ids },
     providersConfig: ids.map((id) => ({
       id,
       enabled: true,
@@ -110,40 +110,50 @@ describe("executeWithProviderFailover", () => {
     // The queue pauses on this error's Retry-After. The last provider to answer
     // is a poor witness for the whole list: if another one is free in 5s, the
     // queue should be back to work in 5s.
-    markProviderCoolingDown("b", "rate-limit", 2_000)
+    vi.useFakeTimers()
+    try {
+      markProviderCoolingDown("b", "rate-limit", 2_000)
 
-    const error = await executeWithProviderFailover({
-      config: makeConfig(["a", "b"]),
-      requireLLM: true,
-      seed: seedFor("a"),
-      run: async () => {
-        throw rateLimit(60_000)
-      },
-    }).catch((reason: unknown) => reason)
+      const error = await executeWithProviderFailover({
+        config: makeConfig(["a", "b"]),
+        requireLLM: true,
+        seed: seedFor("a"),
+        run: async () => {
+          throw rateLimit(60_000)
+        },
+      }).catch((reason: unknown) => reason)
 
-    expect(getRequestErrorMeta(error).kind).toBe("rate-limit")
-    // b's 5s window, not a's 60s one.
-    expect(getRequestErrorMeta(error).retryAfterMs).toBe(5_000)
-    expect(isProviderCoolingDown("a")).toBe(true)
-    expect(isProviderCoolingDown("b")).toBe(true)
+      expect(getRequestErrorMeta(error).kind).toBe("rate-limit")
+      // b's 5s window, not a's 60s one.
+      expect(getRequestErrorMeta(error).retryAfterMs).toBe(5_000)
+      expect(isProviderCoolingDown("a")).toBe(true)
+      expect(isProviderCoolingDown("b")).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("hands back a rate-limit error when nothing is selectable because all are cooling", async () => {
     // Distinct from "no provider configured": the queue must WAIT for this one,
     // not drain the backlog the way a 401 would.
-    markProviderCoolingDown("a", "rate-limit", 30_000)
-    markProviderCoolingDown("b", "rate-limit", 12_000)
+    vi.useFakeTimers()
+    try {
+      markProviderCoolingDown("a", "rate-limit", 30_000)
+      markProviderCoolingDown("b", "rate-limit", 12_000)
 
-    const error = await executeWithProviderFailover({
-      config: makeConfig(["a", "b"]),
-      requireLLM: true,
-      run: async () => "unreachable",
-    }).catch((reason: unknown) => reason)
+      const error = await executeWithProviderFailover({
+        config: makeConfig(["a", "b"]),
+        requireLLM: true,
+        run: async () => "unreachable",
+      }).catch((reason: unknown) => reason)
 
-    expect(error).toBeInstanceOf(Error)
-    expect(getRequestErrorMeta(error).kind).toBe("rate-limit")
-    // The soonest recovery, not the longest: b is back first.
-    expect(getRequestErrorMeta(error).retryAfterMs).toBe(12_000)
+      expect(error).toBeInstanceOf(Error)
+      expect(getRequestErrorMeta(error).kind).toBe("rate-limit")
+      // The soonest recovery, not the longest: b is back first.
+      expect(getRequestErrorMeta(error).retryAfterMs).toBe(12_000)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("clears a provider's accumulated backoff once one of its requests succeeds", async () => {

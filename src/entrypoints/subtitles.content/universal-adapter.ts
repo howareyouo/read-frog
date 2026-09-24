@@ -26,7 +26,7 @@ import {
 import { downloadSubtitlesAsSrt } from "@/utils/subtitles/srt"
 import { showSubtitlesErrorToast } from "@/utils/subtitles/toast"
 import type { SubtitlesFragment } from "@/utils/subtitles/types"
-import { replaceFragmentWindow } from "@/utils/subtitles/utils"
+import { replaceFragmentWindow, sleep } from "@/utils/subtitles/utils"
 import {
   adPlayingAtom,
   currentTimeMsAtom,
@@ -47,14 +47,6 @@ import { ROOT_VIEW } from "./ui/subtitles-settings-panel/views"
 type SubtitlesFetcherFactories = {
   native: () => SubtitlesFetcher
   ai?: () => SubtitlesFetcher
-}
-
-const LOADING_MESSAGE: Record<SubtitlesSource, string | undefined> = {
-  [SUBTITLES_SOURCE.NATIVE]: undefined,
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export interface SubtitlesProvidersAdapter {
@@ -138,9 +130,7 @@ export class UniversalVideoAdapter implements SubtitlesProvidersAdapter {
     this.toggleSubtitlesWithSource(enabled)
   }
 
-  toggleSubtitlesByShortcut = (enabled: boolean) => {
-    this.toggleSubtitlesWithSource(enabled)
-  }
+  toggleSubtitlesByShortcut = this.toggleSubtitlesManually
 
   async handleSourceTrackChanged(): Promise<void> {
     if (!this.trackChangeRefreshPromise) {
@@ -252,13 +242,9 @@ export class UniversalVideoAdapter implements SubtitlesProvidersAdapter {
     return optimizeSubtitles(rawSubtitles, sourceLanguage)
   }
 
-  private clearSourceProcessedSubtitles() {
-    this.sourceProcessedSubtitles = []
-  }
-
   private clearSourceCache() {
     this.sourceSubtitles = []
-    this.clearSourceProcessedSubtitles()
+    this.sourceProcessedSubtitles = []
     this.sourceVideoId = null
   }
 
@@ -495,11 +481,6 @@ export class UniversalVideoAdapter implements SubtitlesProvidersAdapter {
     this.subtitlesScheduler?.show()
     this.hideNativeSubtitles()
 
-    const message = LOADING_MESSAGE[next]
-    if (message) {
-      this.subtitlesScheduler?.setState("loading", { message })
-    }
-
     const succeeded = await this.startTranslation()
     if (operationId !== this.switchOperationId) {
       return
@@ -600,7 +581,7 @@ export class UniversalVideoAdapter implements SubtitlesProvidersAdapter {
       this.sessionVideoId = currentVideoId
       this.subtitlesScheduler?.reset()
 
-      this.subtitlesScheduler?.setState("loading", { message: LOADING_MESSAGE[this.source] })
+      this.subtitlesScheduler?.setState("loading")
 
       await this.getOrLoadSourceSubtitles()
       this.sessionSubtitles = this.sourceSubtitles
@@ -757,7 +738,7 @@ export class UniversalVideoAdapter implements SubtitlesProvidersAdapter {
 
     const summary = await Promise.race([
       summaryPromise,
-      wait(SUMMARY_WAIT_TIMEOUT_MS).then(() => null),
+      sleep(SUMMARY_WAIT_TIMEOUT_MS).then(() => null),
     ])
     // A superseded switch or navigation replaced the session while we waited.
     if (this.translationCoordinator !== coordinator) {

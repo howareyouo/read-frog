@@ -1,5 +1,9 @@
 import type { Config } from "@/types/config/config"
 import {
+  GIANT_PARAGRAPH_SPLIT_MIN_VIEWPORT_PX,
+  GIANT_PARAGRAPH_SPLIT_VIEWPORT_MULTIPLIER,
+} from "../../../constants/translate"
+import {
   isBlockTransNode,
   isDontWalkIntoAndDontTranslateAsChildElement,
   isDontWalkIntoButTranslateAsChildElement,
@@ -8,6 +12,7 @@ import {
   isTranslatedContentNode,
   isTranslatedWrapperNode,
 } from "../../dom/filter"
+import { childNodeIndexOf } from "../../dom/node"
 import type { VirtualParagraphSourceSnapshot } from "../core/translation-state"
 
 const PRESERVED_NEWLINE_WHITE_SPACE = new Set(["pre", "pre-wrap", "pre-line", "break-spaces"])
@@ -20,6 +25,14 @@ const PRESERVED_NEWLINE_WHITE_SPACE = new Set(["pre", "pre-wrap", "pre-line", "b
 export function isNewlinePreservingElement(element: HTMLElement): boolean {
   const whiteSpace = window.getComputedStyle(element).whiteSpace.trim().toLowerCase()
   return PRESERVED_NEWLINE_WHITE_SPACE.has(whiteSpace)
+}
+
+/** A container taller than this is what the observer treats as a giant. */
+export function isGiantParagraphUnit(element: HTMLElement): boolean {
+  const maxUnitHeight =
+    Math.max(window.innerHeight, GIANT_PARAGRAPH_SPLIT_MIN_VIEWPORT_PX) *
+    GIANT_PARAGRAPH_SPLIT_VIEWPORT_MULTIPLIER
+  return element.getBoundingClientRect().height > maxUnitHeight
 }
 
 /**
@@ -309,19 +322,6 @@ function boundaryAfterElement(element: HTMLElement): DOMBoundary | undefined {
 }
 
 /**
- * Index of `node` among `parent.childNodes` without materializing a throwaway
- * array via `[...childNodes].indexOf(node)` (was an O(siblings) allocation on
- * every call, and there are several per segmented paragraph).
- */
-function childNodeIndexOf(parent: Node, node: Node): number {
-  const childNodes = parent.childNodes
-  for (let i = 0; i < childNodes.length; i += 1) {
-    if (childNodes[i] === node) return i
-  }
-  return -1
-}
-
-/**
  * Chunks are appended in stream order, so `streamStart` is strictly increasing
  * and the chunks are non-overlapping. Locate the chunk covering `streamOffset`
  * (where `streamStart <= offset < streamEnd`) in O(log C) instead of scanning.
@@ -597,13 +597,6 @@ export function buildVirtualParagraphPlan(
   return units.length >= 2
     ? { units, sourceSnapshots: createSourceSnapshots(state.chunks) }
     : { units: [], sourceSnapshots: [] }
-}
-
-export function buildVirtualParagraphUnits(
-  layoutSource: HTMLElement,
-  config: Config,
-): VirtualParagraphUnit[] {
-  return buildVirtualParagraphPlan(layoutSource, config).units
 }
 
 /**

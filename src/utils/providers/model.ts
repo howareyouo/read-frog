@@ -21,7 +21,7 @@ interface ProviderLike {
   languageModel: (modelId: string) => LanguageModel
 }
 
-async function getLanguageModelById(providerId: string) {
+export async function getLanguageModelById(providerId: string) {
   const config = await storage.getItem<Config>(`local:${CONFIG_STORAGE_KEY}`)
   if (!config) {
     throw new Error("Config not found")
@@ -77,8 +77,4 @@ export async function getLanguageModelForConfig(
   }
 
   return provider.languageModel(modelId)
-}
-
-export async function getModelById(providerId: string) {
-  return getLanguageModelById(providerId)
 }

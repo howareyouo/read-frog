@@ -21,7 +21,7 @@ function makeConfig(
   providers: Array<{ id: string; enabled: boolean; provider: string } & Record<string, unknown>>,
 ): Config {
   return {
-    videoSubtitles: { providerIds, providerId: providerIds[0] },
+    videoSubtitles: { providerIds },
     providersConfig: providers,
   } as unknown as Config
 }

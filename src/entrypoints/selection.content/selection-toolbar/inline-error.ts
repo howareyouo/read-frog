@@ -7,7 +7,7 @@ export interface SelectionToolbarInlineError {
   description: string
 }
 
-type SelectionToolbarErrorKind = "translate" | "customAction"
+export type SelectionToolbarErrorKind = "translate" | "customAction"
 type SelectionToolbarPrecheckErrorCode =
   | "actionUnavailable"
   | "missingSelection"

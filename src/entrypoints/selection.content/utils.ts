@@ -70,7 +70,7 @@ export function toLiveRange(rangeSnapshot: SelectionRangeSnapshot) {
   return range
 }
 
-function getParentNodeAcrossShadow(node: Node | null) {
+export function getParentNodeAcrossShadow(node: Node | null) {
   if (!node) {
     return null
   }
@@ -109,7 +109,7 @@ function getNearestParentElement(node: Node | null) {
   return parentNode instanceof Element ? parentNode : null
 }
 
-function collectSelectionBoundaryNodes(selection: Selection) {
+export function collectSelectionBoundaryNodes(selection: Selection) {
   const boundaryNodes = new Set<Node>()
 
   if (selection.anchorNode) {
@@ -187,22 +187,12 @@ function readSelectionRangeSnapshots(selection: Selection | null) {
   const snapshots: SelectionRangeSnapshot[] = []
   const rangeCount = typeof selection.rangeCount === "number" ? selection.rangeCount : 0
 
-  if (rangeCount > 0) {
-    for (let index = 0; index < rangeCount; index += 1) {
-      try {
-        snapshots.push(createRangeSnapshot(selection.getRangeAt(index)))
-      } catch {
-        return snapshots
-      }
+  for (let index = 0; index < rangeCount; index += 1) {
+    try {
+      snapshots.push(createRangeSnapshot(selection.getRangeAt(index)))
+    } catch {
+      return snapshots
     }
-
-    return snapshots
-  }
-
-  try {
-    snapshots.push(createRangeSnapshot(selection.getRangeAt(0)))
-  } catch {
-    return snapshots
   }
 
   return snapshots

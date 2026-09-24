@@ -1,7 +1,5 @@
 import type { Config } from "@/types/config/config"
 import type { ProviderConfig } from "@/types/config/provider"
-import { isTranslateProvider } from "@/types/config/provider"
-import { mergeWithArrayOverwrite } from "../atoms/config"
 import { getProviderConfigById } from "../config/helpers"
 
 export const FEATURE_KEYS = [
@@ -14,59 +12,39 @@ export const FEATURE_KEYS = [
 export type FeatureKey = (typeof FEATURE_KEYS)[number]
 
 export interface FeatureProviderDef {
-  getProviderId: (config: Config) => string
-  /** The full set of providers a feature may rotate through. Falls back to `[getProviderId]` when empty. */
+  /** The providers a feature rotates through; the first one is the primary. */
   getProviderIds: (config: Config) => string[]
-  configPath: readonly string[]
   providerIdsConfigPath: readonly string[]
-  isProvider: (provider: string) => boolean
 }
 
 export const FEATURE_PROVIDER_DEFS = {
   pageTranslation: {
-    isProvider: isTranslateProvider,
-    getProviderId: (c: Config) => c.pageTranslation.providerId,
     getProviderIds: (c: Config) => c.pageTranslation.providerIds,
-    configPath: ["pageTranslation", "providerId"],
     providerIdsConfigPath: ["pageTranslation", "providerIds"],
   },
   videoSubtitles: {
-    isProvider: isTranslateProvider,
-    getProviderId: (c: Config) => c.videoSubtitles.providerId,
     getProviderIds: (c: Config) => c.videoSubtitles.providerIds,
-    configPath: ["videoSubtitles", "providerId"],
     providerIdsConfigPath: ["videoSubtitles", "providerIds"],
   },
   selectionTranslation: {
-    isProvider: isTranslateProvider,
-    getProviderId: (c: Config) => c.selectionToolbar.features.translate.providerId,
     getProviderIds: (c: Config) => c.selectionToolbar.features.translate.providerIds,
-    configPath: ["selectionToolbar", "features", "translate", "providerId"],
     providerIdsConfigPath: ["selectionToolbar", "features", "translate", "providerIds"],
   },
   inputTranslation: {
-    isProvider: isTranslateProvider,
-    getProviderId: (c: Config) => c.inputTranslation.providerId,
     getProviderIds: (c: Config) => c.inputTranslation.providerIds,
-    configPath: ["inputTranslation", "providerId"],
     providerIdsConfigPath: ["inputTranslation", "providerIds"],
   },
 } as const satisfies Record<FeatureKey, FeatureProviderDef>
 
 /**
- * The provider ids a feature will rotate through. `providerIds` is the
- * user-facing multi-select; when it is empty (legacy configs predating
- * multi-select) we fall back to the single `providerId` so dispatch keeps
- * working without a migration.
+ * The provider ids a feature will rotate through; the first one is the
+ * feature's primary provider.
  */
 export function getFeatureProviderIds(config: Config, featureKey: FeatureKey): string[] {
-  const ids = FEATURE_PROVIDER_DEFS[featureKey].getProviderIds(config)
-  if (ids.length > 0) return ids
-  const fallback = FEATURE_PROVIDER_DEFS[featureKey].getProviderId(config)
-  return fallback ? [fallback] : []
+  return FEATURE_PROVIDER_DEFS[featureKey].getProviderIds(config)
 }
 
-/** The primary provider — first of `providerIds`, or `providerId` when multi-select is empty. */
+/** The primary provider — first of `providerIds`. */
 export function getPrimaryFeatureProviderId(config: Config, featureKey: FeatureKey): string {
   return getFeatureProviderIds(config, featureKey)[0] ?? ""
 }
@@ -111,40 +89,27 @@ export function resolveProviderConfigOrNull(
 }
 
 /**
- * Convert a feature→providerId mapping into a Partial<Config> using FEATURE_PROVIDER_DEFS.configPath.
- * Generic — works for any scenario that assigns provider IDs to features.
+ * Immutably assign `value` at a nested `path`, creating intermediate objects
+ * as needed. Feature config paths never overlap, so successive assignments
+ * into one patch object never clobber each other.
  */
-
-export function buildFeatureProviderPatch(
-  assignments: Partial<Record<FeatureKey, string>>,
-): Partial<Config> {
-  let patch: Record<string, unknown> = {}
-
-  for (const key of FEATURE_KEYS) {
-    const newId = assignments[key]
-    if (newId === undefined) continue
-
-    const def = FEATURE_PROVIDER_DEFS[key]
-
-    const fragment: Record<string, unknown> = {}
-    let current: Record<string, unknown> = fragment
-    for (let i = 0; i < def.configPath.length - 1; i++) {
-      const next: Record<string, unknown> = {}
-      current[def.configPath[i]!] = next
-      current = next
-    }
-    current[def.configPath[def.configPath.length - 1]!] = newId
-
-    patch = mergeWithArrayOverwrite(patch, fragment)
+export function setConfigPath(
+  config: Record<string, unknown> | undefined,
+  path: readonly string[],
+  value: unknown,
+): Record<string, unknown> {
+  const [head, ...rest] = path
+  if (head === undefined) return value as Record<string, unknown>
+  const child = config?.[head] as Record<string, unknown> | undefined
+  return {
+    ...config,
+    [head]: setConfigPath(child, rest, value),
   }
-
-  return patch
 }
 
 /**
- * Like `buildFeatureProviderPatch` but assigns the multi-select `providerIds`
- * array (not the single `providerId`). `providerId` is kept in sync as the
- * first element by the caller so legacy single-provider readers stay valid.
+ * Convert a feature→provider-ids mapping into a Partial<Config> using
+ * FEATURE_PROVIDER_DEFS.providerIdsConfigPath.
  */
 export function buildFeatureProviderIdsPatch(
   assignments: Partial<Record<FeatureKey, string[]>>,
@@ -155,18 +120,7 @@ export function buildFeatureProviderIdsPatch(
     const newIds = assignments[key]
     if (newIds === undefined) continue
 
-    const def = FEATURE_PROVIDER_DEFS[key]
-
-    const fragment: Record<string, unknown> = {}
-    let current: Record<string, unknown> = fragment
-    for (let i = 0; i < def.providerIdsConfigPath.length - 1; i++) {
-      const next: Record<string, unknown> = {}
-      current[def.providerIdsConfigPath[i]!] = next
-      current = next
-    }
-    current[def.providerIdsConfigPath[def.providerIdsConfigPath.length - 1]!] = newIds
-
-    patch = mergeWithArrayOverwrite(patch, fragment)
+    patch = setConfigPath(patch, FEATURE_PROVIDER_DEFS[key].providerIdsConfigPath, newIds)
   }
 
   return patch
@@ -175,15 +129,11 @@ export function buildFeatureProviderIdsPatch(
 /**
  * Assign one provider as a feature's sole selection — used by inline
  * quick-switch pickers (selection toolbar footer) where picking a provider
- * means "use this one now". Writes both `providerId` and `providerIds` so
- * single- and multi-provider readers agree.
+ * means "use this one now".
  */
 export function buildFeatureProviderSelectionPatch(
   featureKey: FeatureKey,
   providerId: string,
 ): Partial<Config> {
-  return mergeWithArrayOverwrite(
-    buildFeatureProviderPatch({ [featureKey]: providerId }),
-    buildFeatureProviderIdsPatch({ [featureKey]: [providerId] }),
-  )
+  return buildFeatureProviderIdsPatch({ [featureKey]: [providerId] })
 }

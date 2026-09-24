@@ -938,9 +938,6 @@ options:
     title: What's New
   rateUs:
     title: Rate Us
-  configMigration:
-    versionTooNew: The imported config version is newer, please upgrade Read Frog to the latest version
-    validationError: Config validation failed
 side:
   sourceLang: Source Language
   targetLang: Target Language

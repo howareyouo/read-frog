@@ -83,6 +83,11 @@ function ImportConfig() {
       ) {
         throw new TypeError("Invalid config schemaVersion")
       }
+      if (importConfigSchemaVersion > CONFIG_SCHEMA_VERSION) {
+        throw new TypeError(
+          `Imported config schema version ${importConfigSchemaVersion} is newer than supported ${CONFIG_SCHEMA_VERSION}`,
+        )
+      }
 
       if (parsed.config === undefined) {
         throw new TypeError("Missing config payload")

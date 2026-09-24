@@ -1,15 +1,15 @@
 import type { LLMProviderConfig } from "@/types/config/provider"
 import { resolveModelId } from "@/utils/providers/model-id"
 import {
-  getRetryAfterMs,
   getRequestErrorMeta,
+  getRetryAfterMs,
   isRateLimitRequestError,
 } from "@/utils/request/retry-policy"
 import {
   isProviderCoolingDown,
   markProviderCoolingDown,
-  soonestCooldownRecoveryMs,
   type ProviderFailureKind,
+  soonestCooldownRecoveryMs,
 } from "./provider-cooldown"
 
 /**
@@ -54,11 +54,13 @@ const modelRoundRobinCounters = new Map<string, number>()
  * Credential cooldowns share the provider cooldown maps under composite ids.
  * Provider ids are generated, so the prefixes cannot collide with a real
  * provider, and the shared implementation brings the backoff doubling, the
- * Retry-After honoring, the cap and the self-expiry for free.
+ * Retry-After honoring, the cap and the self-expiry for free. The config
+ * watcher (translation-queues) also clears through these ids when a provider
+ * row is edited, so a fixed key/model is back on the next request.
  */
-const apiKeyCooldownId = (providerId: string, apiKey: string) =>
+export const apiKeyCooldownId = (providerId: string, apiKey: string) =>
   `api-key\u0000${providerId}\u0000${apiKey}`
-const modelIdCooldownId = (providerId: string, modelId: string) =>
+export const modelIdCooldownId = (providerId: string, modelId: string) =>
   `model\u0000${providerId}\u0000${modelId}`
 
 /** The primary `apiKey` plus the extras, trimmed, deduped, in config order. */
@@ -124,12 +126,14 @@ export function pickNextCredential(providerConfig: LLMProviderConfig): RotatedCr
   if (!hasAvailableCredential(providerConfig)) return null
 
   return {
-    apiKey: availableApiKeys.length > 0
-      ? nextInRoundRobin(keyRoundRobinCounters, providerId, availableApiKeys)
-      : undefined,
-    modelId: availableModelIds.length > 0
-      ? nextInRoundRobin(modelRoundRobinCounters, providerId, availableModelIds)
-      : undefined,
+    apiKey:
+      availableApiKeys.length > 0
+        ? nextInRoundRobin(keyRoundRobinCounters, providerId, availableApiKeys)
+        : undefined,
+    modelId:
+      availableModelIds.length > 0
+        ? nextInRoundRobin(modelRoundRobinCounters, providerId, availableModelIds)
+        : undefined,
   }
 }
 

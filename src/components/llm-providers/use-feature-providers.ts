@@ -1,22 +1,12 @@
-import {
-  useAtomValue,
-  useSetAtom } from "jotai"
-import { useCallback,
-  useMemo,
-} from "react"
+import { useAtomValue, useSetAtom } from "jotai"
+import { useCallback, useMemo } from "react"
 import type { ProviderConfig } from "@/types/config/provider"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
-import {
-  configAtom,
-  configFieldsAtomMap,
-  mergeWithArrayOverwrite,
-  writeConfigAtom,
-} from "@/utils/atoms/config"
+import { configAtom, configFieldsAtomMap, writeConfigAtom } from "@/utils/atoms/config"
 import { getProviderConfigById } from "@/utils/config/helpers"
 import type { FeatureKey } from "@/utils/constants/feature-providers"
 import {
   buildFeatureProviderIdsPatch,
-  buildFeatureProviderPatch,
   FEATURE_PROVIDER_DEFS,
 } from "@/utils/constants/feature-providers"
 import { getSelectionToolbarActions, patchSelectionToolbarAction } from "@/utils/custom-actions"
@@ -26,8 +16,8 @@ import { providerSupportsTranslationOnlyMode } from "@/utils/providers/translati
 
 export interface FeatureProviderBinding {
   providers: ProviderSelectorOption[]
+  /** The primary provider — first of `providerIds`. */
   providerId: string
-  /** The multi-select rotation list exactly as stored — empty means "fall back to `providerId`". */
   providerIds: string[]
   providerConfig: ProviderConfig | null
   setProviderId: (providerId: string) => void
@@ -40,7 +30,8 @@ export function useFeatureProvider(featureKey: FeatureKey): FeatureProviderBindi
   const setConfig = useSetAtom(writeConfigAtom)
   const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
   const translationMode = useAtomValue(configFieldsAtomMap.pageTranslation).mode
-  const providerId = FEATURE_PROVIDER_DEFS[featureKey].getProviderId(config)
+  const providerIds = FEATURE_PROVIDER_DEFS[featureKey].getProviderIds(config)
+  const providerId = providerIds[0] ?? ""
 
   // Page translate in translationOnly mode cannot run on providers without
   // markup support (see translation-only-gate.ts) — hide them so the blocked
@@ -57,21 +48,13 @@ export function useFeatureProvider(featureKey: FeatureKey): FeatureProviderBindi
   }, [featureKey, providersConfig, hideTranslationOnlyUnsupported])
 
   const setProviderId = useCallback(
-    (id: string) => void setConfig(buildFeatureProviderPatch({ [featureKey]: id })),
+    (id: string) => void setConfig(buildFeatureProviderIdsPatch({ [featureKey]: [id] })),
     [featureKey, setConfig],
   )
 
   const setProviderIds = useCallback(
     (ids: string[]) => {
-      const idsPatch = buildFeatureProviderIdsPatch({ [featureKey]: ids })
-      // Keep the legacy single-provider field pointing at the first selection so
-      // readers that have not moved to the array yet stay correct. An empty
-      // selection leaves `providerId` untouched — dispatch falls back to it.
-      const primaryId = ids[0]
-      const patch = primaryId
-        ? mergeWithArrayOverwrite(idsPatch, buildFeatureProviderPatch({ [featureKey]: primaryId }))
-        : idsPatch
-      void setConfig(patch)
+      void setConfig(buildFeatureProviderIdsPatch({ [featureKey]: ids }))
     },
     [featureKey, setConfig],
   )
@@ -79,7 +62,7 @@ export function useFeatureProvider(featureKey: FeatureKey): FeatureProviderBindi
   return {
     providers,
     providerId,
-    providerIds: FEATURE_PROVIDER_DEFS[featureKey].getProviderIds(config),
+    providerIds,
     providerConfig: getProviderConfigById(providersConfig, providerId) ?? null,
     setProviderId,
     setProviderIds,

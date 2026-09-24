@@ -2,7 +2,7 @@ import { Menu } from "@base-ui/react/menu"
 import { NumberField } from "@base-ui/react/number-field"
 import { Popover } from "@base-ui/react/popover"
 import { IconChevronDown, IconColorPicker, IconX } from "@tabler/icons-react"
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, domAnimation, LazyMotion, m } from "motion/react"
 import type { CSSProperties, HTMLAttributes, ReactNode, Ref } from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import type { SliderValue } from "@/components/ui/base-ui/slider"
@@ -601,64 +601,66 @@ function SaturationSquare({ h, s, v, onChange }: SaturationSquareProps) {
   const thumbColor = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`
 
   return (
-    <div
-      ref={ref}
-      role="application"
-      aria-label="Saturation and brightness"
-      tabIndex={0}
-      onFocus={(e) => {
-        if (e.currentTarget.matches(":focus-visible")) setFocused(true)
-      }}
-      onBlur={() => setFocused(false)}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => {
-        setHovered(false)
-        setCursorPos(null)
-      }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={() => setDragging(false)}
-      onKeyDown={onKeyDown}
-      className={cn(
-        "relative w-full cursor-none touch-none outline-none select-none",
-        SHAPE.bg,
-        focused && "ring-2 ring-ring",
-      )}
-      style={{ height: SQUARE_HEIGHT }}
-    >
+    <LazyMotion features={domAnimation}>
       <div
-        className={cn("absolute inset-0 overflow-hidden", SHAPE.bg)}
-        style={{
-          background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h}, 100%, 50%))`,
+        ref={ref}
+        role="application"
+        aria-label="Saturation and brightness"
+        tabIndex={0}
+        onFocus={(e) => {
+          if (e.currentTarget.matches(":focus-visible")) setFocused(true)
         }}
-      />
-      <motion.div
-        className="pointer-events-none absolute rounded-full"
-        initial={false}
-        animate={{ left: `${s * 100}%`, top: `${(1 - v) * 100}%`, width: 18, height: 18 }}
-        transition={{ duration: 0 }}
-        style={{
-          transform: "translate(-50%, -50%)",
-          border: "1px solid white",
-          boxShadow: "0 0 0 1px rgba(0,0,0,1)",
-          backgroundColor: thumbColor,
+        onBlur={() => setFocused(false)}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => {
+          setHovered(false)
+          setCursorPos(null)
         }}
-      />
-      {hovered && !dragging && cursorPos && (
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={() => setDragging(false)}
+        onKeyDown={onKeyDown}
+        className={cn(
+          "relative w-full cursor-none touch-none outline-none select-none",
+          SHAPE.bg,
+          focused && "ring-2 ring-ring",
+        )}
+        style={{ height: SQUARE_HEIGHT }}
+      >
         <div
-          className="pointer-events-none absolute rounded-full"
+          className={cn("absolute inset-0 overflow-hidden", SHAPE.bg)}
           style={{
-            left: `${cursorPos.x}%`,
-            top: `${cursorPos.y}%`,
-            width: 18,
-            height: 18,
-            transform: "translate(-50%, -50%)",
-            border: "2px solid rgba(255, 255, 255, 0.55)",
-            boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.2)",
+            background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h}, 100%, 50%))`,
           }}
         />
-      )}
-    </div>
+        <m.div
+          className="pointer-events-none absolute rounded-full"
+          initial={false}
+          animate={{ left: `${s * 100}%`, top: `${(1 - v) * 100}%`, width: 18, height: 18 }}
+          transition={{ duration: 0 }}
+          style={{
+            transform: "translate(-50%, -50%)",
+            border: "1px solid white",
+            boxShadow: "0 0 0 1px rgba(0,0,0,1)",
+            backgroundColor: thumbColor,
+          }}
+        />
+        {hovered && !dragging && cursorPos && (
+          <div
+            className="pointer-events-none absolute rounded-full"
+            style={{
+              left: `${cursorPos.x}%`,
+              top: `${cursorPos.y}%`,
+              width: 18,
+              height: 18,
+              transform: "translate(-50%, -50%)",
+              border: "2px solid rgba(255, 255, 255, 0.55)",
+              boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.2)",
+            }}
+          />
+        )}
+      </div>
+    </LazyMotion>
   )
 }
 
@@ -881,171 +883,175 @@ function FormatDropdown({
   )
 
   return (
-    <Menu.Root
-      open={open}
-      onOpenChange={(next) => {
-        if (!isControlled) setInternalOpen(next)
-      }}
-      actionsRef={actionsRef}
-      // Non-modal: the page keeps scrolling and the Positioner tracks the anchor, so the
-      // popup follows its trigger instead of detaching.
-      modal={false}
-    >
-      <Menu.Trigger
-        className={cn(
-          "flex cursor-pointer items-center justify-between gap-2 px-3 text-[13px] font-medium hover:bg-accent hover:text-foreground",
-          CONTROL_CLASS,
-          SHAPE.input,
-          open ? "bg-accent text-foreground" : "text-muted-foreground active:bg-accent",
-        )}
+    <LazyMotion features={domAnimation}>
+      <Menu.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (!isControlled) setInternalOpen(next)
+        }}
+        actionsRef={actionsRef}
+        // Non-modal: the page keeps scrolling and the Positioner tracks the anchor, so the
+        // popup follows its trigger instead of detaching.
+        modal={false}
       >
-        <span>{FORMAT_LABELS[value]}</span>
-        <IconChevronDown
+        <Menu.Trigger
           className={cn(
-            "size-3.5 text-muted-foreground transition-transform duration-150",
-            open && "rotate-180",
+            "flex cursor-pointer items-center justify-between gap-2 px-3 text-[13px] font-medium hover:bg-accent hover:text-foreground",
+            CONTROL_CLASS,
+            SHAPE.input,
+            open ? "bg-accent text-foreground" : "text-muted-foreground active:bg-accent",
           )}
-        />
-      </Menu.Trigger>
-      <Menu.Portal container={portalContainer ?? undefined}>
-        {/* pointer-events-auto: content-script hosts are click-through at the root so the
-            page stays usable, and a portalled layer has to opt back in to receive events. */}
-        <Menu.Positioner
-          side="bottom"
-          align="start"
-          sideOffset={6}
-          className="pointer-events-auto z-60 outline-none"
         >
-          <motion.div
-            initial={{ opacity: 0, y: -4, scaleY: 0.96 }}
-            animate={open ? { opacity: 1, y: 0, scaleY: 1 } : { opacity: 0, y: -4, scaleY: 0.96 }}
-            transition={open ? spring.fast : spring.fast.exit}
-            style={{ transformOrigin: "top center" }}
-            onAnimationComplete={() => {
-              if (!open) actionsRef.current?.unmount()
-            }}
+          <span>{FORMAT_LABELS[value]}</span>
+          <IconChevronDown
+            className={cn(
+              "size-3.5 text-muted-foreground transition-transform duration-150",
+              open && "rotate-180",
+            )}
+          />
+        </Menu.Trigger>
+        <Menu.Portal container={portalContainer ?? undefined}>
+          {/* pointer-events-auto: content-script hosts are click-through at the root so the
+            page stays usable, and a portalled layer has to opt back in to receive events. */}
+          <Menu.Positioner
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            className="pointer-events-auto z-60 outline-none"
           >
-            <FormatMenuContext value={menuCtx}>
-              <Menu.Popup
-                ref={containerRef}
-                data-slot="color-picker-format-content"
-                onMouseEnter={() => {
-                  handlers.onMouseEnter()
-                  setFocusedIndex(null)
-                }}
-                onMouseMove={handlers.onMouseMove}
-                onMouseLeave={handlers.onMouseLeave}
-                onFocus={(e) => {
-                  const indexAttr = (e.target as HTMLElement)
-                    .closest("[data-proximity-index]")
-                    ?.getAttribute("data-proximity-index")
-                  // Index 0 is falsy, so this has to be an explicit nullish check.
-                  if (indexAttr === null || indexAttr === undefined) return
-                  const idx = Number(indexAttr)
-                  setActiveIndex(idx)
-                  setFocusedIndex((e.target as HTMLElement).matches(":focus-visible") ? idx : null)
-                }}
-                onBlur={(e) => {
-                  if (containerRef.current?.contains(e.relatedTarget)) return
-                  setFocusedIndex(null)
-                  setActiveIndex(null)
-                }}
-                className={cn(
-                  "relative flex min-w-[var(--anchor-width)] flex-col gap-0.5 border bg-popover p-1 shadow-md outline-none select-none",
-                  SHAPE.container,
-                )}
-              >
-                {/* Selected background */}
-                <AnimatePresence>
-                  {checkedRect && (
-                    <motion.div
-                      className={cn("pointer-events-none absolute", SHAPE.bg, SELECTED_TINT)}
-                      initial={false}
-                      animate={{
-                        top: checkedRect.top,
-                        left: checkedRect.left,
-                        width: checkedRect.width,
-                        height: checkedRect.height,
-                        opacity: 1,
-                      }}
-                      exit={{ opacity: 0, transition: spring.moderate.exit }}
-                      transition={{ ...spring.moderate, opacity: { duration: 0.08 } }}
-                    />
+            <m.div
+              initial={{ opacity: 0, y: -4, scaleY: 0.96 }}
+              animate={open ? { opacity: 1, y: 0, scaleY: 1 } : { opacity: 0, y: -4, scaleY: 0.96 }}
+              transition={open ? spring.fast : spring.fast.exit}
+              style={{ transformOrigin: "top center" }}
+              onAnimationComplete={() => {
+                if (!open) actionsRef.current?.unmount()
+              }}
+            >
+              <FormatMenuContext value={menuCtx}>
+                <Menu.Popup
+                  ref={containerRef}
+                  data-slot="color-picker-format-content"
+                  onMouseEnter={() => {
+                    handlers.onMouseEnter()
+                    setFocusedIndex(null)
+                  }}
+                  onMouseMove={handlers.onMouseMove}
+                  onMouseLeave={handlers.onMouseLeave}
+                  onFocus={(e) => {
+                    const indexAttr = (e.target as HTMLElement)
+                      .closest("[data-proximity-index]")
+                      ?.getAttribute("data-proximity-index")
+                    // Index 0 is falsy, so this has to be an explicit nullish check.
+                    if (indexAttr === null || indexAttr === undefined) return
+                    const idx = Number(indexAttr)
+                    setActiveIndex(idx)
+                    setFocusedIndex(
+                      (e.target as HTMLElement).matches(":focus-visible") ? idx : null,
+                    )
+                  }}
+                  onBlur={(e) => {
+                    if (containerRef.current?.contains(e.relatedTarget)) return
+                    setFocusedIndex(null)
+                    setActiveIndex(null)
+                  }}
+                  className={cn(
+                    "relative flex min-w-[var(--anchor-width)] flex-col gap-0.5 border bg-popover p-1 shadow-md outline-none select-none",
+                    SHAPE.container,
                   )}
-                </AnimatePresence>
+                >
+                  {/* Selected background */}
+                  <AnimatePresence>
+                    {checkedRect && (
+                      <m.div
+                        className={cn("pointer-events-none absolute", SHAPE.bg, SELECTED_TINT)}
+                        initial={false}
+                        animate={{
+                          top: checkedRect.top,
+                          left: checkedRect.left,
+                          width: checkedRect.width,
+                          height: checkedRect.height,
+                          opacity: 1,
+                        }}
+                        exit={{ opacity: 0, transition: spring.moderate.exit }}
+                        transition={{ ...spring.moderate, opacity: { duration: 0.08 } }}
+                      />
+                    )}
+                  </AnimatePresence>
 
-                {/* Hover background — keyed per pointer session so it fades in at the
+                  {/* Hover background — keyed per pointer session so it fades in at the
                     selected row rather than sliding from wherever it last sat. */}
-                <AnimatePresence>
-                  {activeRect && (
-                    <motion.div
-                      key={sessionRef.current}
-                      className={cn("pointer-events-none absolute", SHAPE.bg, HOVER_TINT)}
-                      initial={{
-                        opacity: 0,
-                        top: checkedRect?.top ?? activeRect.top,
-                        left: checkedRect?.left ?? activeRect.left,
-                        width: checkedRect?.width ?? activeRect.width,
-                        height: checkedRect?.height ?? activeRect.height,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        top: activeRect.top,
-                        left: activeRect.left,
-                        width: activeRect.width,
-                        height: activeRect.height,
-                      }}
-                      exit={{ opacity: 0, transition: spring.fast.exit }}
-                      transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
-                    />
-                  )}
-                </AnimatePresence>
+                  <AnimatePresence>
+                    {activeRect && (
+                      <m.div
+                        key={sessionRef.current}
+                        className={cn("pointer-events-none absolute", SHAPE.bg, HOVER_TINT)}
+                        initial={{
+                          opacity: 0,
+                          top: checkedRect?.top ?? activeRect.top,
+                          left: checkedRect?.left ?? activeRect.left,
+                          width: checkedRect?.width ?? activeRect.width,
+                          height: checkedRect?.height ?? activeRect.height,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          top: activeRect.top,
+                          left: activeRect.left,
+                          width: activeRect.width,
+                          height: activeRect.height,
+                        }}
+                        exit={{ opacity: 0, transition: spring.fast.exit }}
+                        transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
+                      />
+                    )}
+                  </AnimatePresence>
 
-                {/* Focus ring */}
-                <AnimatePresence>
-                  {focusRect && (
-                    <motion.div
-                      className={cn(
-                        "pointer-events-none absolute z-20 border border-ring",
-                        SHAPE.focusRing,
-                      )}
-                      initial={false}
-                      animate={{
-                        left: focusRect.left - 2,
-                        top: focusRect.top - 2,
-                        width: focusRect.width + 4,
-                        height: focusRect.height + 4,
-                      }}
-                      exit={{ opacity: 0, transition: spring.fast.exit }}
-                      transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
-                    />
-                  )}
-                </AnimatePresence>
+                  {/* Focus ring */}
+                  <AnimatePresence>
+                    {focusRect && (
+                      <m.div
+                        className={cn(
+                          "pointer-events-none absolute z-20 border border-ring",
+                          SHAPE.focusRing,
+                        )}
+                        initial={false}
+                        animate={{
+                          left: focusRect.left - 2,
+                          top: focusRect.top - 2,
+                          width: focusRect.width + 4,
+                          height: focusRect.height + 4,
+                        }}
+                        exit={{ opacity: 0, transition: spring.fast.exit }}
+                        transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
+                      />
+                    )}
+                  </AnimatePresence>
 
-                {/* display: contents keeps items direct flex children of the popup, so
+                  {/* display: contents keeps items direct flex children of the popup, so
                     proximity measurement and gap layout still work while the group
                     provides the radio value context. */}
-                <Menu.RadioGroup
-                  value={value}
-                  onValueChange={(next) => onChange(next as ColorFormat)}
-                  className="contents"
-                >
-                  {FORMATS.map((fmt, i) => (
-                    <FormatItem
-                      key={fmt}
-                      index={i}
-                      value={fmt}
-                      label={FORMAT_LABELS[fmt]}
-                      checked={value === fmt}
-                    />
-                  ))}
-                </Menu.RadioGroup>
-              </Menu.Popup>
-            </FormatMenuContext>
-          </motion.div>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
+                  <Menu.RadioGroup
+                    value={value}
+                    onValueChange={(next) => onChange(next as ColorFormat)}
+                    className="contents"
+                  >
+                    {FORMATS.map((fmt, i) => (
+                      <FormatItem
+                        key={fmt}
+                        index={i}
+                        value={fmt}
+                        label={FORMAT_LABELS[fmt]}
+                        checked={value === fmt}
+                      />
+                    ))}
+                  </Menu.RadioGroup>
+                </Menu.Popup>
+              </FormatMenuContext>
+            </m.div>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
+    </LazyMotion>
   )
 }
 
@@ -1998,90 +2004,94 @@ function ColorPickerPopover({
     : currentValue
 
   return (
-    <Popover.Root
-      open={open}
-      onOpenChange={handleOpenChange}
-      actionsRef={actionsRef}
-      // Non-modal: the page keeps scrolling and the Positioner tracks the anchor, so the
-      // panel follows its trigger instead of detaching.
-      modal={false}
-    >
-      <div ref={ref} className="inline-flex">
-        <Popover.Trigger
-          className={cn(
-            "flex cursor-pointer items-center gap-2 border border-border px-2 text-[13px] font-medium hover:bg-accent",
-            CONTROL_CLASS,
-            SHAPE.input,
-            triggerClassName,
-          )}
-        >
-          {triggerLabel && triggerLabelPosition === "left" && (
-            <span className="px-1 text-muted-foreground select-none">{triggerLabel}</span>
-          )}
-          <ColorTile color={swatchColor} size={20} />
-          {triggerShowValue && <span className="text-foreground tabular-nums">{valueLabel}</span>}
-          {triggerLabel && triggerLabelPosition === "right" && (
-            <span className="px-1 text-muted-foreground select-none">{triggerLabel}</span>
-          )}
-          {triggerShowRemove && (
-            <span
-              role="button"
-              aria-label="Remove color"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation()
-                onTriggerRemove?.()
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  onTriggerRemove?.()
-                }
-              }}
-              className="ml-1 flex cursor-pointer items-center text-muted-foreground hover:text-foreground"
-            >
-              <IconX className="size-3.5" />
-            </span>
-          )}
-        </Popover.Trigger>
-        <Popover.Portal container={outerContainer ?? undefined}>
-          {/* pointer-events-auto: see the format menu's positioner — the subtitles panel's
-              shadow host is pointer-events:none so clicks fall through to the video. */}
-          <Popover.Positioner
-            side="bottom"
-            align="start"
-            sideOffset={6}
-            className="pointer-events-auto z-50 outline-none"
+    <LazyMotion features={domAnimation}>
+      <Popover.Root
+        open={open}
+        onOpenChange={handleOpenChange}
+        actionsRef={actionsRef}
+        // Non-modal: the page keeps scrolling and the Positioner tracks the anchor, so the
+        // panel follows its trigger instead of detaching.
+        modal={false}
+      >
+        <div ref={ref} className="inline-flex">
+          <Popover.Trigger
+            className={cn(
+              "flex cursor-pointer items-center gap-2 border border-border px-2 text-[13px] font-medium hover:bg-accent",
+              CONTROL_CLASS,
+              SHAPE.input,
+              triggerClassName,
+            )}
           >
-            <motion.div
-              initial={{ opacity: 0, y: -4, scaleY: 0.96 }}
-              animate={open ? { opacity: 1, y: 0, scaleY: 1 } : { opacity: 0, y: -4, scaleY: 0.96 }}
-              transition={open ? spring.moderate : spring.moderate.exit}
-              style={{ transformOrigin: "top left" }}
-              onAnimationComplete={() => {
-                if (!open) actionsRef.current?.unmount()
-              }}
-            >
-              <Popover.Popup
-                ref={setPanelEl}
-                data-slot="color-picker-content"
-                className="outline-none"
+            {triggerLabel && triggerLabelPosition === "left" && (
+              <span className="px-1 text-muted-foreground select-none">{triggerLabel}</span>
+            )}
+            <ColorTile color={swatchColor} size={20} />
+            {triggerShowValue && <span className="text-foreground tabular-nums">{valueLabel}</span>}
+            {triggerLabel && triggerLabelPosition === "right" && (
+              <span className="px-1 text-muted-foreground select-none">{triggerLabel}</span>
+            )}
+            {triggerShowRemove && (
+              <span
+                role="button"
+                aria-label="Remove color"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onTriggerRemove?.()
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    onTriggerRemove?.()
+                  }
+                }}
+                className="ml-1 flex cursor-pointer items-center text-muted-foreground hover:text-foreground"
               >
-                <ColorPickerPortalContainer value={panelEl}>
-                  <ColorPicker
-                    {...pickerProps}
-                    value={currentValue}
-                    onValueChange={handleValueChange}
-                    className={cn("shadow-lg", pickerProps.className)}
-                  />
-                </ColorPickerPortalContainer>
-              </Popover.Popup>
-            </motion.div>
-          </Popover.Positioner>
-        </Popover.Portal>
-      </div>
-    </Popover.Root>
+                <IconX className="size-3.5" />
+              </span>
+            )}
+          </Popover.Trigger>
+          <Popover.Portal container={outerContainer ?? undefined}>
+            {/* pointer-events-auto: see the format menu's positioner — the subtitles panel's
+              shadow host is pointer-events:none so clicks fall through to the video. */}
+            <Popover.Positioner
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              className="pointer-events-auto z-50 outline-none"
+            >
+              <m.div
+                initial={{ opacity: 0, y: -4, scaleY: 0.96 }}
+                animate={
+                  open ? { opacity: 1, y: 0, scaleY: 1 } : { opacity: 0, y: -4, scaleY: 0.96 }
+                }
+                transition={open ? spring.moderate : spring.moderate.exit}
+                style={{ transformOrigin: "top left" }}
+                onAnimationComplete={() => {
+                  if (!open) actionsRef.current?.unmount()
+                }}
+              >
+                <Popover.Popup
+                  ref={setPanelEl}
+                  data-slot="color-picker-content"
+                  className="outline-none"
+                >
+                  <ColorPickerPortalContainer value={panelEl}>
+                    <ColorPicker
+                      {...pickerProps}
+                      value={currentValue}
+                      onValueChange={handleValueChange}
+                      className={cn("shadow-lg", pickerProps.className)}
+                    />
+                  </ColorPickerPortalContainer>
+                </Popover.Popup>
+              </m.div>
+            </Popover.Positioner>
+          </Popover.Portal>
+        </div>
+      </Popover.Root>
+    </LazyMotion>
   )
 }
 

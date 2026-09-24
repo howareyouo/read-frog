@@ -5,6 +5,7 @@ import { TranslationCancelledError } from "./cancellation"
 import { BinaryHeapPQ } from "./priority-queue"
 import type { RequestRetryPolicy } from "./retry-policy"
 import { defaultRequestRetryPolicy } from "./retry-policy"
+import { createDeferred, detachMatchingTaskScopes, joinTaskScopes } from "./scoped-deferred-task"
 
 export interface RequestTask {
   id: string
@@ -84,21 +85,11 @@ export class RequestQueue {
   ): Promise<T> {
     const duplicateTask = this.duplicateTask(hash)
     if (duplicateTask) {
-      // console.info(`🔄 Found duplicate task for hash: ${hash}, returning existing promise`)
-      if (!scopes?.length) {
-        duplicateTask.cancelScopes = null
-      } else if (duplicateTask.cancelScopes !== null) {
-        scopes.forEach((scope) => duplicateTask.cancelScopes!.add(scope))
-      }
+      duplicateTask.cancelScopes = joinTaskScopes(duplicateTask.cancelScopes, scopes)
       return duplicateTask.promise
     }
 
-    let resolve!: (value: T) => void
-    let reject!: (error: Error) => void
-    const promise = new Promise<T>((res, rej) => {
-      resolve = res
-      reject = rej
-    })
+    const { promise, resolve, reject } = createDeferred<T>()
 
     const task: QueuedRequestTask = {
       id: getRandomUUID(),
@@ -121,8 +112,6 @@ export class RequestQueue {
     // Order ready tasks by their deadline, not by arrival time: a cue about to
     // play should not wait behind far-future prefetched cues (#P7).
     this.waitingQueue.push(task, this.effectivePriority(task))
-
-    // console.info(`✅ Task ${task.id} added to queue. Queue size: ${this.waitingQueue.size()}, waiting: ${this.waitingTasks.size}, executing: ${this.executingTasks.size}`)
 
     this.schedule()
     return promise
@@ -164,15 +153,8 @@ export class RequestQueue {
     let cancelled = 0
 
     const cancelMatchingScopes = (task: QueuedRequestTask): boolean => {
-      if (task.cancelScopes === null) return false
-      let matchedScope: string | undefined
-      for (const scope of task.cancelScopes) {
-        if (scopeMatches(scope)) {
-          matchedScope = scope
-          task.cancelScopes.delete(scope)
-        }
-      }
-      if (matchedScope === undefined || task.cancelScopes.size > 0) return false
+      const matchedScope = detachMatchingTaskScopes(task.cancelScopes, scopeMatches)
+      if (matchedScope === undefined) return false
       this.rejectDrainedTask(task, new TranslationCancelledError(matchedScope))
       return true
     }
@@ -280,8 +262,6 @@ export class RequestQueue {
   }
 
   private async executeTask(task: QueuedRequestTask) {
-    // console.info(`🏃 Starting execution of task ${task.id} (attempt ${task.retryCount + 1}) at ${Date.now()}`)
-
     let timeoutId: NodeJS.Timeout | null = null
     const abortController = new AbortController()
     task.abortController = abortController
@@ -291,7 +271,6 @@ export class RequestQueue {
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
-          // console.info(`⏰ Task ${task.id} timed out after ${timeoutMs}ms`)
           const timeoutError = new Error(`Task ${task.id} timed out after ${timeoutMs}ms`)
           // Reject before aborting: the race must settle with the timeout error
           // (which the retry policy treats as retryable), not with whatever abort
@@ -311,7 +290,6 @@ export class RequestQueue {
         timeoutId = null
       }
 
-      // console.info(`✅ Task ${task.id} completed successfully at ${Date.now()}`)
       // Any completed request proves the provider recovered from rate limiting.
       this.consecutiveRateLimits = 0
       if (!task.drained) {
@@ -323,8 +301,6 @@ export class RequestQueue {
         clearTimeout(timeoutId)
         timeoutId = null
       }
-
-      // console.error(`❌ Task ${task.id} failed at ${Date.now()}:`, error)
 
       if (task.drained) {
         return
@@ -346,8 +322,6 @@ export class RequestQueue {
         // Schedule retry
         const retryAt = now + decision.delayMs
         task.scheduleAt = retryAt
-
-        // console.warn(`🔄 Retrying task ${task.id} (attempt ${task.retryCount}/${this.options.maxRetries}) after ${Math.round(decision.delayMs)}ms`)
 
         // Move task back to waiting queue for retry
         this.waitingTasks.set(task.hash, task)
@@ -375,7 +349,6 @@ export class RequestQueue {
         this.schedule()
       } else {
         // Max retries exceeded, reject the promise
-        // console.error(`💀 Task ${task.id} failed permanently after ${this.options.maxRetries} retries`)
         if (decision.failQueue) {
           this.failCurrentBacklog(error)
         } else {
@@ -452,10 +425,6 @@ export class RequestQueue {
     const timeSinceLastRefill = now - this.lastRefill
     const tokensToAdd = (timeSinceLastRefill / 1000) * this.options.rate
     this.bucketTokens = Math.min(this.bucketTokens + tokensToAdd, this.options.capacity)
-
-    // if (tokensToAdd > 0.01) { // Only log if meaningful tokens were added
-    //   console.log(`🪣 Token bucket refilled: ${oldTokens.toFixed(2)} -> ${this.bucketTokens.toFixed(2)} (+${tokensToAdd.toFixed(2)}) after ${timeSinceLastRefill}ms`)
-    // }
 
     this.lastRefill = now
   }

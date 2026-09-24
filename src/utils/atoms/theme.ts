@@ -2,11 +2,15 @@ import { atom } from "jotai"
 import type { ThemeMode } from "@/types/config/theme"
 import { DEFAULT_THEME_MODE, themeModeSchema } from "@/types/config/theme"
 import { THEME_STORAGE_KEY } from "../constants/config"
-import { logger } from "../logger"
 import { storageAdapter } from "./storage-adapter"
+import { createSyncedAtom } from "./synced-atom"
 
 // Private base atom. Only export this for top-level hydration before ThemeProvider mounts.
-export const baseThemeModeAtom = atom<ThemeMode>(DEFAULT_THEME_MODE)
+export const baseThemeModeAtom = createSyncedAtom(DEFAULT_THEME_MODE, {
+  load: () => storageAdapter.get<ThemeMode>(THEME_STORAGE_KEY, DEFAULT_THEME_MODE, themeModeSchema),
+  subscribe: (onUpdate) => storageAdapter.watch<ThemeMode>(THEME_STORAGE_KEY, onUpdate),
+  logLabel: "baseThemeModeAtom",
+})
 
 // Public atom with read/write - write always goes through storageAdapter
 export const themeModeAtom = atom(
@@ -22,25 +26,3 @@ export const themeModeAtom = atom(
     }
   },
 )
-
-baseThemeModeAtom.onMount = (setAtom: (newValue: ThemeMode) => void) => {
-  void storageAdapter
-    .get<ThemeMode>(THEME_STORAGE_KEY, DEFAULT_THEME_MODE, themeModeSchema)
-    .then(setAtom)
-  const unwatch = storageAdapter.watch<ThemeMode>(THEME_STORAGE_KEY, setAtom)
-
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === "visible") {
-      logger.info("baseThemeModeAtom onMount handleVisibilityChange when: ", new Date())
-      void storageAdapter
-        .get<ThemeMode>(THEME_STORAGE_KEY, DEFAULT_THEME_MODE, themeModeSchema)
-        .then(setAtom)
-    }
-  }
-  document.addEventListener("visibilitychange", handleVisibilityChange)
-
-  return () => {
-    unwatch()
-    document.removeEventListener("visibilitychange", handleVisibilityChange)
-  }
-}

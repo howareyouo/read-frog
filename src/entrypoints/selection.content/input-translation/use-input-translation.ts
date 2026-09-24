@@ -1,11 +1,6 @@
-import {
-  useAtomValue } from "jotai"
-import { useCallback,
-  useEffect,
-  useRef,
-} from "react"
+import { useAtomValue } from "jotai"
+import { useCallback, useEffect, useRef } from "react"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
-import { INPUT_REPLACE_REQUEST_TYPE } from "@/utils/constants/input-injector"
 import { translateTextForInput } from "@/utils/host/translate/translate-input"
 
 const SPACE_KEY = " "
@@ -117,7 +112,7 @@ function setTextWithUndo(
   }
 
   if (element.isContentEditable) {
-    window.postMessage({ type: INPUT_REPLACE_REQUEST_TYPE, text }, window.location.origin)
+    window.postMessage({ type: "READ_FROG_INPUT_REPLACE", text }, window.location.origin)
   }
 }
 

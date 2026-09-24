@@ -2,6 +2,10 @@ import { MAX_CHARS_CJK, MAX_WORDS } from "@/utils/constants/subtitles"
 import { WHITESPACE_PATTERN } from "./text"
 import type { SubtitlesFragment } from "./types"
 
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export function isCJKLanguage(lang?: string): boolean {
   if (!lang) return false
   return ["zh", "ja", "ko", "th", "lo", "km", "my"].some((l) => lang.startsWith(l))

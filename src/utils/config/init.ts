@@ -8,6 +8,7 @@ import {
   buildFreshDefaultConfig,
   CONFIG_SCHEMA_VERSION,
   CONFIG_STORAGE_KEY,
+  CORRUPT_CONFIG_BACKUP_KEY,
   DEFAULT_CONFIG,
 } from "../constants/config"
 import { logger } from "../logger"
@@ -46,7 +47,16 @@ export async function initializeConfig(): Promise<InitializeConfigResult> {
   }
 
   if (!configSchema.safeParse(config).success) {
-    logger.warn("Config is invalid, using default config")
+    logger.error("Config is invalid, using default config")
+    // Keep the discarded config around — a corrupted store used to wipe the
+    // user's settings silently; now it can be recovered from this key.
+    if (storedConfig) {
+      await storage.setItem(`local:${CORRUPT_CONFIG_BACKUP_KEY}`, {
+        config: storedConfig,
+        schemaVersion: configMeta?.schemaVersion ?? null,
+        backedUpAt: Date.now(),
+      })
+    }
     await initI18n(DEFAULT_CONFIG.uiLanguage)
     config = buildFreshDefaultConfig()
     didConfigChange = true

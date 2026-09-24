@@ -938,9 +938,6 @@ options:
     title: 最近更新
   rateUs:
     title: 好评支持
-  configMigration:
-    versionTooNew: 导入的配置版本较新，请升级 Read Frog 到最新版本
-    validationError: 配置验证失败
 side:
   sourceLang: 来源语言
   targetLang: 目标语言

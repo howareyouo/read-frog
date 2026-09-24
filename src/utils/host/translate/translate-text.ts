@@ -297,7 +297,7 @@ export function validateTranslationConfigAndToast(
   const provider = resolveProviderRefForCapability(
     "pageTranslation",
     providersConfig,
-    translateConfig.providerId,
+    translateConfig.providerIds[0] ?? "",
   )
   if (!provider) {
     return false

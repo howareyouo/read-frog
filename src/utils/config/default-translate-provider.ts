@@ -1,8 +1,6 @@
-import { mergeWithArrayOverwrite } from "@/utils/atoms/config"
 import type { FeatureKey } from "@/utils/constants/feature-providers"
 import {
   buildFeatureProviderIdsPatch,
-  buildFeatureProviderPatch,
   FEATURE_KEYS,
   FEATURE_PROVIDER_DEFS,
 } from "@/utils/constants/feature-providers"
@@ -12,6 +10,7 @@ import {
 } from "@/utils/constants/providers"
 import { isGoogleTranslateReachable } from "@/utils/host/translate/api/google"
 import { logger } from "@/utils/logger"
+import { mergeWithArrayOverwrite } from "@/utils/merge"
 import { getLocalConfigAndMeta, setLocalConfig } from "./storage"
 
 /**
@@ -35,37 +34,22 @@ export async function selectFreshTranslateProviders(): Promise<void> {
 async function promoteMicrosoftDefaultsToGoogle(): Promise<void> {
   const { value: config } = await getLocalConfigAndMeta()
 
-  const assignments: Partial<Record<FeatureKey, string>> = {}
   const assignmentsIds: Partial<Record<FeatureKey, string[]>> = {}
   for (const featureKey of FEATURE_KEYS) {
-    const def = FEATURE_PROVIDER_DEFS[featureKey]
-    // Rotation may hold Microsoft in the multi-select even when the primary
-    // has moved on — rewrite it wherever the Microsoft default still appears.
-    const providerIds = def.getProviderIds(config)
-    const newIds = providerIds.includes(MICROSOFT_TRANSLATE_PROVIDER_ID)
-      ? providerIds.map((id) =>
-          id === MICROSOFT_TRANSLATE_PROVIDER_ID ? GOOGLE_TRANSLATE_PROVIDER_ID : id,
-        )
-      : providerIds
-    if (def.getProviderId(config) === MICROSOFT_TRANSLATE_PROVIDER_ID) {
-      assignments[featureKey] = GOOGLE_TRANSLATE_PROVIDER_ID
-    }
-    if (newIds !== providerIds) {
-      assignmentsIds[featureKey] = newIds
-    }
+    const providerIds = FEATURE_PROVIDER_DEFS[featureKey].getProviderIds(config)
+    // Rotation may hold Microsoft even when the primary has moved on —
+    // rewrite it wherever the Microsoft default still appears.
+    if (!providerIds.includes(MICROSOFT_TRANSLATE_PROVIDER_ID)) continue
+    assignmentsIds[featureKey] = providerIds.map((id) =>
+      id === MICROSOFT_TRANSLATE_PROVIDER_ID ? GOOGLE_TRANSLATE_PROVIDER_ID : id,
+    )
   }
-  if (Object.keys(assignments).length === 0 && Object.keys(assignmentsIds).length === 0) {
+  if (Object.keys(assignmentsIds).length === 0) {
     return
   }
 
   await setLocalConfig(
-    mergeWithArrayOverwrite(
-      config,
-      mergeWithArrayOverwrite(
-        buildFeatureProviderIdsPatch(assignmentsIds),
-        buildFeatureProviderPatch(assignments),
-      ),
-    ),
+    mergeWithArrayOverwrite(config, buildFeatureProviderIdsPatch(assignmentsIds)),
   )
   logger.info("[Config] Google Translate reachable, promoted it to the default translate provider")
 }

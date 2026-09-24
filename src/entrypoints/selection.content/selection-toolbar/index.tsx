@@ -1,16 +1,9 @@
 import type {
   EbookBridgeSelectionDirection,
   EbookBridgeSelectionPayload,
-  } from "@read-frog/definitions"
-import { useAtom,
-  useAtomValue,
-  useSetAtom } from "jotai"
-import { useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react"
+} from "@read-frog/definitions"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import {
   SELECTION_CONTENT_OVERLAY_LAYERS,
   SELECTION_CONTENT_OVERLAY_ROOT_ATTRIBUTE,
@@ -25,7 +18,11 @@ import {
 import { getSelectionToolbarActions } from "@/utils/custom-actions"
 import { cn } from "@/utils/styles/utils"
 import { matchDomainPattern } from "@/utils/url"
-import { buildContextSnapshot, readSelectionSnapshot } from "../utils"
+import {
+  buildContextSnapshot,
+  collectSelectionBoundaryNodes,
+  readSelectionSnapshot,
+} from "../utils"
 import {
   clearSelectionStateAtom,
   isSelectionToolbarVisibleAtom,
@@ -140,30 +137,6 @@ function isNodeInsideSelectionOverlay(
   }
 
   return node === overlayShadowRoot || node.getRootNode() === overlayShadowRoot
-}
-
-function collectSelectionBoundaryNodes(selection: Selection) {
-  const boundaryNodes = new Set<Node>()
-
-  if (selection.anchorNode) {
-    boundaryNodes.add(selection.anchorNode)
-  }
-
-  if (selection.focusNode) {
-    boundaryNodes.add(selection.focusNode)
-  }
-
-  for (let index = 0; index < selection.rangeCount; index += 1) {
-    try {
-      const range = selection.getRangeAt(index)
-      boundaryNodes.add(range.startContainer)
-      boundaryNodes.add(range.endContainer)
-    } catch {
-      break
-    }
-  }
-
-  return [...boundaryNodes]
 }
 
 function isSelectionInsideSelectionOverlay(

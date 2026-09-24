@@ -1,5 +1,5 @@
-import { MARK_ATTRIBUTES } from "../../../constants/dom-labels"
 import { isTranslatedWrapperNode } from "../../dom/filter"
+import { childNodeIndexOf } from "../../dom/node"
 
 export interface TextSplitRecord {
   source: Text
@@ -194,6 +194,7 @@ export function isTranslationOnlySwapRecordDead(record: TranslationOnlySwapRecor
 export function swapRecordIntersectsNodes(
   record: TranslationOnlySwapRecord,
   nodes: readonly ChildNode[],
+  boundary?: Node,
 ): boolean {
   if (nodes.length === 0) return false
   // nodeSet holds every target node plus all of its ancestors. A swap node
@@ -202,35 +203,32 @@ export function swapRecordIntersectsNodes(
   // ancestor chain lands in nodeSet". Building it once is O(nodes·depth); each
   // swap-node test then walks its own ancestor chain (O(depth)), replacing the
   // original O(nodes·subtree) `contains` probe per candidate.
-  const nodeSet = new Set<Node>()
-  for (const node of nodes) {
+  //
+  // `boundary` is the anchor the records live on. Every run on one anchor
+  // shares it, so the walk must stop below it: letting it reach the anchor
+  // (and everything above) would declare sibling runs intersecting — a
+  // virtual-paragraph unit's swap then dropped the other units' restore
+  // records, leaving them unrestorable on toggle.
+  const collectInto = (node: Node, into: Set<Node>) => {
     let current: Node | null = node
-    while (current) {
-      nodeSet.add(current)
+    while (current && current !== boundary) {
+      into.add(current)
       current = current.parentNode
     }
   }
+  const nodeSet = new Set<Node>()
+  for (const node of nodes) {
+    collectInto(node, nodeSet)
+  }
   const intersects = (candidate: ChildNode): boolean => {
     let current: Node | null = candidate
-    while (current) {
+    while (current && current !== boundary) {
       if (nodeSet.has(current)) return true
       current = current.parentNode
     }
     return false
   }
   return record.runNodes.some(intersects) || record.items.some((item) => intersects(item.node))
-}
-
-/**
- * Index of `node` among `parent.childNodes` without materializing a throwaway
- * array via `[...childNodes].indexOf(node)`.
- */
-function childNodeIndexOf(parent: Node, node: Node): number {
-  const childNodes = parent.childNodes
-  for (let i = 0; i < childNodes.length; i += 1) {
-    if (childNodes[i] === node) return i
-  }
-  return -1
 }
 
 export function dropTranslationOnlySwapRecords(
@@ -604,9 +602,3 @@ export function unregisterVirtualParagraphGroup(group: VirtualParagraphGroup): v
     }
   })
 }
-
-// Pre-compiled regex for better performance - removes all mark attributes
-export const MARK_ATTRIBUTES_REGEX = new RegExp(
-  `\\s*(?:${[...MARK_ATTRIBUTES].join("|")})(?:=['""][^'"]*['""]|=[^\\s>]*)?`,
-  "g",
-)

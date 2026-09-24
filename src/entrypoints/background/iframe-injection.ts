@@ -2,7 +2,6 @@ import { browser } from "#imports"
 import type { Config } from "@/types/config/config"
 import { getLocalConfig } from "@/utils/config/storage"
 import { logger } from "@/utils/logger"
-import { SELECTION_ENABLED_WINDOW_KEY } from "@/utils/selection-runtime"
 import { isSiteEnabled, SITE_CONTROL_URL_WINDOW_KEY } from "@/utils/site-control"
 import { matchDomainPattern } from "@/utils/url"
 import type { FrameInfoForSiteControl } from "./iframe-injection-utils"
@@ -10,9 +9,12 @@ import { resolveSiteControlUrl } from "./iframe-injection-utils"
 import { getPageTranslationEnabled } from "./page-translation-state"
 
 const HOST_CONTENT_SCRIPT_FILE = "/content-scripts/host.js" as const
+const SELECTION_CONTENT_SCRIPT_FILE = "/content-scripts/selection.js" as const
 const IFRAME_FULL_RUNTIME_AUTO_INJECT_PATTERNS = ["browse.library.kiwix.org"] as const
 
-type IframeContentScriptFile = typeof HOST_CONTENT_SCRIPT_FILE
+type IframeContentScriptFile =
+  | typeof HOST_CONTENT_SCRIPT_FILE
+  | typeof SELECTION_CONTENT_SCRIPT_FILE
 
 const pendingScriptDocumentKeys = new Set<string>()
 const injectedDocumentKeysByFrameAndScript = new Map<string, string>()
@@ -103,10 +105,6 @@ function setInjectedSiteControlUrl(propertyName: string, siteControlUrl: string)
   ;(globalThis as Record<string, unknown>)[propertyName] = siteControlUrl
 }
 
-function setInjectedSelectionRuntimeFlag(propertyName: string) {
-  ;(globalThis as Record<string, unknown>)[propertyName] = true
-}
-
 function getInjectionTarget(details: FrameInjectionDetails) {
   if (details.documentId) {
     return { tabId: details.tabId, documentIds: [details.documentId] }
@@ -127,11 +125,15 @@ function isFullRuntimeAutoInjectUrl(url: string | undefined): url is string {
   )
 }
 
-function getIframeContentScriptFiles(): IframeContentScriptFile[] {
-  // Host and selection merged into a single content script; whether the
-  // selection UI bootstraps inside iframes is decided by the window flag
-  // set below, not by which files are injected.
-  return [HOST_CONTENT_SCRIPT_FILE]
+function getIframeContentScriptFiles(
+  includeSelectionContent: boolean,
+): IframeContentScriptFile[] {
+  // Selection is its own content script file: full-runtime frames get host.js
+  // AND selection.js, translation-only frames host.js only. Whether selection
+  // runs is decided by which files are injected, not by a window flag.
+  return includeSelectionContent
+    ? [HOST_CONTENT_SCRIPT_FILE, SELECTION_CONTENT_SCRIPT_FILE]
+    : [HOST_CONTENT_SCRIPT_FILE]
 }
 
 async function getShouldInjectHostContentIntoTabIframes(
@@ -158,7 +160,9 @@ async function injectHostContentIntoFrame(
   options: InjectHostContentIntoTabIframesOptions = {},
 ) {
   const documentKey = getDocumentInjectionKey(details)
-  const filesToInject = getIframeContentScriptFiles().filter((file) => {
+  const filesToInject = getIframeContentScriptFiles(
+    options.includeSelectionContent ?? false,
+  ).filter((file) => {
     const scriptDocumentKey = getScriptDocumentInjectionKey(details, file)
     const scriptFrameKey = getScriptFrameInjectionKey(details, file)
     return (
@@ -212,21 +216,13 @@ async function injectHostContentIntoFrame(
         typeof browser.scripting.executeScript
       >[0]["target"]
 
+      // Must land before the content script files so both entrypoints' gates
+      // see the owner-page URL during the same synchronous pass they run in.
       await browser.scripting.executeScript({
         target,
         func: setInjectedSiteControlUrl,
         args: [SITE_CONTROL_URL_WINDOW_KEY, siteControlUrl],
       })
-
-      // Must land before the content script file so bootstrapSelectionContent
-      // sees the flag during the same synchronous pass it runs in.
-      if (options.includeSelectionContent) {
-        await browser.scripting.executeScript({
-          target,
-          func: setInjectedSelectionRuntimeFlag,
-          args: [SELECTION_ENABLED_WINDOW_KEY],
-        })
-      }
 
       for (const file of filesToInject) {
         await browser.scripting.executeScript({

@@ -45,7 +45,7 @@ describe("react shim: ref-as-prop on plain function components", () => {
     const refs: unknown[] = []
     const mounted = mountTooltip(
       <Tooltip.Trigger
-        render={<PlainButton data-testid="trigger" ref={(el) => refs.push(el)} />}
+        render={<PlainButton data-testid="trigger" ref={(el) => { refs.push(el) }} />}
       >
         trigger
       </Tooltip.Trigger>,

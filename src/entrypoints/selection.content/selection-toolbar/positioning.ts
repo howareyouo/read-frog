@@ -308,10 +308,6 @@ export function measureSelectionAnchor(
   }
 }
 
-export function collectSelectionShadowRoots(ranges: SelectionRangeSnapshot[]) {
-  return collectSelectionScrollTargets(ranges).filter(isShadowRoot)
-}
-
 function isElement(node: Node): node is Element {
   return node.nodeType === 1
 }

@@ -336,7 +336,7 @@ export function applyInPlaceTextSwap(
   // host-changed.
   dropTranslationOnlySwapRecords(
     state,
-    state.swaps.filter((existing) => swapRecordIntersectsNodes(existing, runNodes)),
+    state.swaps.filter((existing) => swapRecordIntersectsNodes(existing, runNodes, anchor)),
   )
   state.swaps.push(record)
 }

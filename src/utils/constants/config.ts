@@ -42,10 +42,12 @@ import { TRANSLATION_NODE_STYLE_ON_INSTALLED } from "./translation-node-style"
 export const CONFIG_STORAGE_KEY = "config"
 export const LAST_SYNCED_CONFIG_STORAGE_KEY = "lastSyncedConfig"
 export const GOOGLE_DRIVE_TOKEN_STORAGE_KEY = "__googleDriveToken"
+/** Where `initializeConfig` parks a config it had to discard as unparseable. */
+export const CORRUPT_CONFIG_BACKUP_KEY = "config_corrupt_backup"
 
 export const THEME_STORAGE_KEY = "theme"
 export const DEFAULT_DETECTED_CODE = "eng" as const
-export const CONFIG_SCHEMA_VERSION = 104
+export const CONFIG_SCHEMA_VERSION = 105
 
 /**
  * Build the code-owned Dictionary action definition in the current UI locale.
@@ -77,7 +79,6 @@ export const DEFAULT_CONFIG: Config = {
   },
   providersConfig: DEFAULT_PROVIDER_CONFIG_LIST,
   pageTranslation: {
-    providerId: MICROSOFT_TRANSLATE_PROVIDER_ID,
     providerIds: [MICROSOFT_TRANSLATE_PROVIDER_ID],
     mode: "bilingual",
     modeShortcut: DEFAULT_TRANSLATION_MODE_SHORTCUT_KEY,
@@ -129,7 +130,6 @@ export const DEFAULT_CONFIG: Config = {
     features: {
       translate: {
         enabled: true,
-        providerId: MICROSOFT_TRANSLATE_PROVIDER_ID,
         providerIds: [MICROSOFT_TRANSLATE_PROVIDER_ID],
         shortcut: DEFAULT_SELECTION_TRANSLATION_SHORTCUT_KEY,
       },
@@ -152,7 +152,6 @@ export const DEFAULT_CONFIG: Config = {
   },
   inputTranslation: {
     enabled: true,
-    providerId: MICROSOFT_TRANSLATE_PROVIDER_ID,
     providerIds: [MICROSOFT_TRANSLATE_PROVIDER_ID],
     fromLang: "targetCode",
     toLang: "sourceCode",
@@ -163,7 +162,6 @@ export const DEFAULT_CONFIG: Config = {
     enabled: true,
     autoStart: false,
     toggleShortcut: DEFAULT_SUBTITLES_TOGGLE_SHORTCUT_KEY,
-    providerId: MICROSOFT_TRANSLATE_PROVIDER_ID,
     providerIds: [MICROSOFT_TRANSLATE_PROVIDER_ID],
     style: {
       displayMode: DEFAULT_DISPLAY_MODE,

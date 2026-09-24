@@ -122,21 +122,26 @@ export function resolveLanguageDetectionConfigForModeChange(
 
 /**
  * Compute fallback provider assignments when a provider is deleted.
- * For each feature using the deleted provider, picks the first remaining
+ * For each feature still selecting the deleted provider, drops it from the
+ * selection; a feature left with an empty selection takes the first remaining
  * enabled provider that can actually run it.
  */
 export function computeProviderFallbacksAfterDeletion(
   deletedProviderId: string,
   config: Config,
   remainingProviders: ProvidersConfig,
-): Partial<Record<FeatureKey, string>> {
-  const updates: Partial<Record<FeatureKey, string>> = {}
+): Partial<Record<FeatureKey, string[]>> {
+  const updates: Partial<Record<FeatureKey, string[]>> = {}
   for (const key of FEATURE_KEYS) {
-    const def = FEATURE_PROVIDER_DEFS[key]
-    const currentId = def.getProviderId(config)
-    if (currentId !== deletedProviderId) continue
-    const fallbackProviderId = getEnabledProviderIdsForCapability(key, remainingProviders)[0]
-    if (fallbackProviderId) updates[key] = fallbackProviderId
+    const providerIds = FEATURE_PROVIDER_DEFS[key].getProviderIds(config)
+    if (!providerIds.includes(deletedProviderId)) continue
+    const remaining = providerIds.filter((id) => id !== deletedProviderId)
+    updates[key] =
+      remaining.length > 0
+        ? remaining
+        : [getEnabledProviderIdsForCapability(key, remainingProviders)[0]].filter(
+            (id): id is string => id !== undefined,
+          )
   }
   return updates
 }

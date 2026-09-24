@@ -56,7 +56,6 @@ const microsoftConfig = {
   ],
   pageTranslation: {
     ...DEFAULT_CONFIG.pageTranslation,
-    providerId: "microsoft",
     providerIds: ["microsoft"],
   },
 } as unknown as Config
@@ -140,7 +139,6 @@ describe("PageTranslationManager toggle 原文/译文 cache behavior", () => {
       ],
       pageTranslation: {
         ...microsoftConfig.pageTranslation,
-        providerId: "ms-1",
         providerIds: ["ms-1", "ms-2"],
       },
     } as unknown as Config

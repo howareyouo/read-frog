@@ -1,5 +1,11 @@
 import { getRandomUUID } from "@/utils/crypto-polyfill"
 import { TranslationCancelledError } from "./cancellation"
+import {
+  createDeferred,
+  detachMatchingTaskScopes,
+  InFlightTaskMap,
+  joinTaskScopes,
+} from "./scoped-deferred-task"
 
 export class BatchCountMismatchError extends Error {
   /**
@@ -99,7 +105,7 @@ interface PendingBatch<T, R> {
   createdAt: number
 }
 
-export interface BatchExecutionMeta {
+export interface BatchExecutionMeta<TProvider = unknown> {
   /**
    * Union of the live members' cancellation scopes at flush time, or
    * `undefined` when any member is uncancellable. Thread this into the
@@ -112,10 +118,10 @@ export interface BatchExecutionMeta {
    * just guarantees executeBatch and the per-item fallback observe the SAME
    * value for one flush.
    */
-  provider?: unknown
+  provider?: TProvider | Promise<TProvider>
 }
 
-export interface BatchOptions<T, R> {
+export interface BatchOptions<T, R, TProvider = unknown> {
   maxCharactersPerBatch: number
   maxItemsPerBatch: number
   /**
@@ -152,8 +158,8 @@ export interface BatchOptions<T, R> {
   // Liveness check for a scope whose cancel may have run while a flushed
   // batch was outside every cancellable structure (retry backoff sleep).
   isScopeCancelled?: (scopeKey: string) => boolean
-  executeBatch: (dataList: T[], meta: BatchExecutionMeta) => Promise<R[]>
-  executeIndividual?: (data: T, meta: BatchExecutionMeta) => Promise<R>
+  executeBatch: (dataList: T[], meta: BatchExecutionMeta<TProvider>) => Promise<R[]>
+  executeIndividual?: (data: T, meta: BatchExecutionMeta<TProvider>) => Promise<R>
   /**
    * Called once per flush, before executeBatch: lets the owner pick a
    * provider (or any batch-scoped resource) for the WHOLE batch. Items are
@@ -162,16 +168,16 @@ export interface BatchOptions<T, R> {
    * Promise here is fine — the owner awaits it inside executeBatch) and is
    * also visible to the per-item fallback.
    */
-  resolveBatchProvider?: () => unknown | Promise<unknown>
+  resolveBatchProvider?: () => TProvider | Promise<TProvider>
   onError?: (
     error: Error,
     context: { batchKey: string; retryCount: number; isFallback: boolean },
   ) => void
 }
 
-export class BatchQueue<T, R> {
+export class BatchQueue<T, R, TProvider = unknown> {
   private pendingBatchMap = new Map<string, PendingBatch<T, R>>()
-  private inFlightTasks = new Map<string, { promise: Promise<R>; task: BatchTask<T, R> }>()
+  private inFlightTasks = new InFlightTaskMap<string, BatchTask<T, R>, R>()
   private nextScheduleTimer: NodeJS.Timeout | null = null
   private maxCharactersPerBatch: number
   private maxItemsPerBatch: number
@@ -193,15 +199,15 @@ export class BatchQueue<T, R> {
   private getDedupKey?: (data: T) => string | undefined
   private getScope?: (data: T) => string | undefined
   private isScopeCancelled?: (scopeKey: string) => boolean
-  private executeBatch: (dataList: T[], meta: BatchExecutionMeta) => Promise<R[]>
-  private executeIndividual?: (data: T, meta: BatchExecutionMeta) => Promise<R>
-  private resolveBatchProvider?: () => unknown
+  private executeBatch: (dataList: T[], meta: BatchExecutionMeta<TProvider>) => Promise<R[]>
+  private executeIndividual?: (data: T, meta: BatchExecutionMeta<TProvider>) => Promise<R>
+  private resolveBatchProvider?: () => TProvider | Promise<TProvider>
   private onError?: (
     error: Error,
     context: { batchKey: string; retryCount: number; isFallback: boolean },
   ) => void
 
-  constructor(config: BatchOptions<T, R>) {
+  constructor(config: BatchOptions<T, R, TProvider>) {
     this.maxCharactersPerBatch = config.maxCharactersPerBatch
     this.maxItemsPerBatch = config.maxItemsPerBatch
     this.minItemsPerBatch = config.minItemsPerBatch ?? 1
@@ -236,21 +242,15 @@ export class BatchQueue<T, R> {
       // on the same page) stays deduped, and at worst one duplicate request is
       // issued for a genuinely different batch (#1881).
       if (inFlight && !inFlight.task.flushed) {
-        if (!scope) {
-          inFlight.task.cancelScopes = null
-        } else if (inFlight.task.cancelScopes !== null) {
-          inFlight.task.cancelScopes.add(scope)
-        }
+        inFlight.task.cancelScopes = joinTaskScopes(
+          inFlight.task.cancelScopes,
+          scope ? [scope] : undefined,
+        )
         return inFlight.promise
       }
     }
 
-    let resolve!: (value: R) => void
-    let reject!: (error: Error) => void
-    const promise = new Promise<R>((res, rej) => {
-      resolve = res
-      reject = rej
-    })
+    const { promise, resolve, reject } = createDeferred<R>()
 
     const batchKey = this.getBatchKey(data)
     const task: BatchTask<T, R> = {
@@ -262,13 +262,7 @@ export class BatchQueue<T, R> {
     }
 
     if (dedupKey) {
-      this.inFlightTasks.set(dedupKey, { promise, task })
-      const release = () => {
-        if (this.inFlightTasks.get(dedupKey)?.promise === promise) {
-          this.inFlightTasks.delete(dedupKey)
-        }
-      }
-      promise.then(release, release)
+      this.inFlightTasks.register(dedupKey, task, promise)
     }
 
     this.addTaskToBatch(task, batchKey)
@@ -292,24 +286,12 @@ export class BatchQueue<T, R> {
     for (const [batchKey, batch] of [...this.pendingBatchMap]) {
       const kept: BatchTask<T, R>[] = []
       for (const task of batch.tasks) {
-        const scopes = task.cancelScopes
-        if (scopes === null) {
+        const matchedScope = detachMatchingTaskScopes(task.cancelScopes, scopeMatches)
+        if (matchedScope === undefined) {
           kept.push(task)
           continue
         }
-        let matchedScope: string | undefined
-        for (const scope of scopes) {
-          if (scopeMatches(scope)) {
-            matchedScope = scope
-            scopes.delete(scope)
-          }
-        }
-        if (matchedScope === undefined || scopes.size > 0) {
-          kept.push(task)
-          continue
-        }
-        // inFlightTasks self-releases via the promise.then(release, release)
-        // handler attached at enqueue time.
+        // The dedup map self-releases when the task's promise settles.
         task.reject(new TranslationCancelledError(matchedScope))
         cancelled++
       }
@@ -548,7 +530,9 @@ export class BatchQueue<T, R> {
       }
       scopes.push(...task.cancelScopes)
     }
-    const meta: BatchExecutionMeta = { scopes: scopes ? [...new Set(scopes)] : undefined }
+    const meta: BatchExecutionMeta<TProvider> = {
+      scopes: scopes ? [...new Set(scopes)] : undefined,
+    }
     if (this.resolveBatchProvider) {
       meta.provider = this.resolveBatchProvider()
     }
@@ -559,7 +543,7 @@ export class BatchQueue<T, R> {
   private async executeBatchWithRetry(
     tasks: BatchTask<T, R>[],
     batchKey: string,
-    meta: BatchExecutionMeta,
+    meta: BatchExecutionMeta<TProvider>,
     retryCount: number,
   ): Promise<void> {
     // Only the first attempt is a clean sample: retries carry their own backoff
@@ -631,7 +615,10 @@ export class BatchQueue<T, R> {
    * with an unscoped member (scopes: undefined) or any surviving scope keeps
    * running — same mixed-batch semantics as cancelByScope.
    */
-  private rejectIfAllScopesCancelled(tasks: BatchTask<T, R>[], meta: BatchExecutionMeta): boolean {
+  private rejectIfAllScopesCancelled(
+    tasks: BatchTask<T, R>[],
+    meta: BatchExecutionMeta<TProvider>,
+  ): boolean {
     if (!this.isScopeCancelled || !meta.scopes || meta.scopes.length === 0) return false
     if (!meta.scopes.every((scope) => this.isScopeCancelled!(scope))) return false
     const error = new TranslationCancelledError(meta.scopes.join(","))
@@ -642,7 +629,7 @@ export class BatchQueue<T, R> {
   private async executeFallbackIndividual(
     tasks: BatchTask<T, R>[],
     batchKey: string,
-    meta: BatchExecutionMeta,
+    meta: BatchExecutionMeta<TProvider>,
     partialResults?: unknown[],
   ) {
     await Promise.allSettled(

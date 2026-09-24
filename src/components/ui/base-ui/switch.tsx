@@ -2,7 +2,7 @@
 
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
 import type { AnimationPlaybackControls, Transition } from "motion/react"
-import { animate, motion, useMotionValue } from "motion/react"
+import { animate, domAnimation, LazyMotion, m, useMotionValue } from "motion/react"
 import * as React from "react"
 import { spring } from "@/utils/styles/springs"
 import { cn } from "@/utils/styles/utils"
@@ -205,60 +205,62 @@ function Switch({
   )
 
   return (
-    <SwitchPrimitive.Root
-      data-slot="switch"
-      data-size={size}
-      className={cn(
-        "peer group/switch relative inline-flex shrink-0 cursor-pointer touch-none items-center rounded-full border border-transparent shadow-xs transition-colors duration-100 outline-none select-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-accent-blue focus-visible:ring-[3px] focus-visible:ring-accent-blue/50 aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 dark:focus-visible:ring-accent-blue/60 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-accent-blue data-checked:hover:not-data-disabled:bg-accent-blue-hover data-unchecked:bg-input dark:data-unchecked:bg-input/80 data-disabled:cursor-not-allowed data-disabled:opacity-50",
-        className,
-      )}
-      checked={checked}
-      defaultChecked={defaultChecked}
-      disabled={disabled}
-      onCheckedChange={handleCheckedChange}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
-      onPointerEnter={(event) => {
-        onPointerEnter?.(event)
-        if (event.pointerType === "mouse" && !disabled) setHovered(true)
-      }}
-      onPointerLeave={(event) => {
-        onPointerLeave?.(event)
-        setHovered(false)
-      }}
-      {...props}
-      style={{ width: track, height }}
-    >
-      <SwitchPrimitive.Thumb
-        data-slot="switch-thumb"
-        render={(thumbProps) => {
-          /* motion.span and React disagree on the drag/animation handler types that
-             Base UI forwards, and none of them are used here. */
-          const {
-            style: baseStyle,
-            onDrag: _onDrag,
-            onDragStart: _onDragStart,
-            onDragEnd: _onDragEnd,
-            onAnimationStart: _onAnimationStart,
-            onAnimationEnd: _onAnimationEnd,
-            onAnimationIteration: _onAnimationIteration,
-            ...rest
-          } = thumbProps as React.HTMLAttributes<HTMLSpanElement>
-          return (
-            <motion.span
-              {...rest}
-              className="pointer-events-none absolute top-0 left-0 block rounded-full bg-white"
-              initial={false}
-              style={{ ...baseStyle, x }}
-              animate={{ y: thumbY, width: thumbWidth, height: thumbHeight }}
-              transition={hasMounted.current ? transition : { duration: 0 }}
-            />
-          )
+    <LazyMotion features={domAnimation}>
+      <SwitchPrimitive.Root
+        data-slot="switch"
+        data-size={size}
+        className={cn(
+          "peer group/switch relative inline-flex shrink-0 cursor-pointer touch-none items-center rounded-full border border-transparent shadow-xs transition-colors duration-100 outline-none select-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-accent-blue focus-visible:ring-[3px] focus-visible:ring-accent-blue/50 aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 dark:focus-visible:ring-accent-blue/60 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-accent-blue data-checked:hover:not-data-disabled:bg-accent-blue-hover data-unchecked:bg-input dark:data-unchecked:bg-input/80 data-disabled:cursor-not-allowed data-disabled:opacity-50",
+          className,
+        )}
+        checked={checked}
+        defaultChecked={defaultChecked}
+        disabled={disabled}
+        onCheckedChange={handleCheckedChange}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onPointerEnter={(event) => {
+          onPointerEnter?.(event)
+          if (event.pointerType === "mouse" && !disabled) setHovered(true)
         }}
-      />
-    </SwitchPrimitive.Root>
+        onPointerLeave={(event) => {
+          onPointerLeave?.(event)
+          setHovered(false)
+        }}
+        {...props}
+        style={{ width: track, height }}
+      >
+        <SwitchPrimitive.Thumb
+          data-slot="switch-thumb"
+          render={(thumbProps) => {
+            /* motion.span and React disagree on the drag/animation handler types that
+             Base UI forwards, and none of them are used here. */
+            const {
+              style: baseStyle,
+              onDrag: _onDrag,
+              onDragStart: _onDragStart,
+              onDragEnd: _onDragEnd,
+              onAnimationStart: _onAnimationStart,
+              onAnimationEnd: _onAnimationEnd,
+              onAnimationIteration: _onAnimationIteration,
+              ...rest
+            } = thumbProps as React.HTMLAttributes<HTMLSpanElement>
+            return (
+              <m.span
+                {...rest}
+                className="pointer-events-none absolute top-0 left-0 block rounded-full bg-white"
+                initial={false}
+                style={{ ...baseStyle, x }}
+                animate={{ y: thumbY, width: thumbWidth, height: thumbHeight }}
+                transition={hasMounted.current ? transition : { duration: 0 }}
+              />
+            )
+          }}
+        />
+      </SwitchPrimitive.Root>
+    </LazyMotion>
   )
 }
 

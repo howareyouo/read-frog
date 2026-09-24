@@ -1,5 +1,5 @@
 import { NOTRANSLATE_CLASS } from "@/utils/constants/dom-labels"
-import type { SelectionRangeSnapshot } from "../utils"
+import { getParentNodeAcrossShadow, type SelectionRangeSnapshot } from "../utils"
 
 export const MODAL_DIALOG_HOST_SLOT_ATTRIBUTE = "data-read-frog-modal-dialog-host-slot"
 
@@ -39,15 +39,6 @@ export interface ModalDialogHostController {
   placeForRanges: (ranges: SelectionRangeSnapshot[]) => boolean
   restore: () => void
   dispose: () => void
-}
-
-function getParentNodeAcrossShadow(node: Node) {
-  if (node.parentNode) {
-    return node.parentNode
-  }
-
-  const root = node.getRootNode()
-  return root instanceof ShadowRoot ? root.host : null
 }
 
 function isActiveModalDialog(node: Node): node is HTMLDialogElement {

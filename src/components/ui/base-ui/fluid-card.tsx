@@ -1,5 +1,5 @@
 import { IconArrowUpRight, IconX } from "@tabler/icons-react"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from "motion/react"
 import * as React from "react"
 import { useContext } from "react"
 import { Link, useInRouterContext } from "react-router"
@@ -227,58 +227,60 @@ function FluidCardGroup({
   const activeRect = proximityHover && activeIndex !== null ? itemRects[activeIndex] : null
 
   return (
-    <FluidCardGroupContext.Provider value={contextValue}>
-      <div
-        ref={(node) => {
-          containerRef.current = node
-          if (typeof ref === "function") ref(node)
-          else if (ref) ref.current = node
-        }}
-        {...props}
-        data-slot="fluid-card-group"
-        data-orientation={orientation}
-        className={cn(
-          "relative grid",
-          // A shared frame clips the highlight and the hairlines to its rounded corners;
-          // separated tiles clip themselves.
-          outlined && !separated && "overflow-hidden rounded-xl border border-border/60",
-          separated ? "gap-2" : "gap-0",
-          className,
-        )}
-        style={{
-          gridTemplateColumns: `repeat(${Math.max(1, columns)}, minmax(0, 1fr))`,
-          ...style,
-        }}
-        onMouseEnter={proximityHover ? handlers.onMouseEnter : undefined}
-        onMouseMove={proximityHover ? handlers.onMouseMove : undefined}
-        onMouseLeave={proximityHover ? handlers.onMouseLeave : undefined}
-      >
-        {/*
+    <LazyMotion features={domAnimation}>
+      <FluidCardGroupContext.Provider value={contextValue}>
+        <div
+          ref={(node) => {
+            containerRef.current = node
+            if (typeof ref === "function") ref(node)
+            else if (ref) ref.current = node
+          }}
+          {...props}
+          data-slot="fluid-card-group"
+          data-orientation={orientation}
+          className={cn(
+            "relative grid",
+            // A shared frame clips the highlight and the hairlines to its rounded corners;
+            // separated tiles clip themselves.
+            outlined && !separated && "overflow-hidden rounded-xl border border-border/60",
+            separated ? "gap-2" : "gap-0",
+            className,
+          )}
+          style={{
+            gridTemplateColumns: `repeat(${Math.max(1, columns)}, minmax(0, 1fr))`,
+            ...style,
+          }}
+          onMouseEnter={proximityHover ? handlers.onMouseEnter : undefined}
+          onMouseMove={proximityHover ? handlers.onMouseMove : undefined}
+          onMouseLeave={proximityHover ? handlers.onMouseLeave : undefined}
+        >
+          {/*
           One magnetic layer that springs to the card nearest the pointer, previewing where
           a click will land. Keyed on the hover session so each pointer entry mounts a fresh
           node: a new node has no previous geometry to transition from, which is what stops
           the highlight from sliding in from whichever card was hovered last time.
         */}
-        <AnimatePresence>
-          {activeRect && (
-            <motion.div
-              key={sessionRef.current}
-              aria-hidden
-              data-slot="fluid-card-highlight"
-              className={cn("pointer-events-none absolute z-0 rounded-xl", HOVER_TINT)}
-              initial={{ opacity: 0, ...activeRect }}
-              animate={{ opacity: 1, ...activeRect }}
-              exit={{ opacity: 0, transition: reduceMotion ? { duration: 0 } : fastExit }}
-              transition={
-                reduceMotion ? { duration: 0 } : { ...fastEnter, opacity: { duration: 0.08 } }
-              }
-            />
-          )}
-        </AnimatePresence>
+          <AnimatePresence>
+            {activeRect && (
+              <m.div
+                key={sessionRef.current}
+                aria-hidden
+                data-slot="fluid-card-highlight"
+                className={cn("pointer-events-none absolute z-0 rounded-xl", HOVER_TINT)}
+                initial={{ opacity: 0, ...activeRect }}
+                animate={{ opacity: 1, ...activeRect }}
+                exit={{ opacity: 0, transition: reduceMotion ? { duration: 0 } : fastExit }}
+                transition={
+                  reduceMotion ? { duration: 0 } : { ...fastEnter, opacity: { duration: 0.08 } }
+                }
+              />
+            )}
+          </AnimatePresence>
 
-        {indexed}
-      </div>
-    </FluidCardGroupContext.Provider>
+          {indexed}
+        </div>
+      </FluidCardGroupContext.Provider>
+    </LazyMotion>
   )
 }
 

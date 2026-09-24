@@ -15,7 +15,7 @@ import {
 } from "react"
 import { toastManager } from "@/components/ui/base-ui/toast"
 import { SelectionPopover } from "@/components/ui/selection-popover"
-import type { BackgroundTextStreamSnapshot, ThinkingSnapshot } from "@/types/background-stream"
+import type { BackgroundTextStreamSnapshot } from "@/types/background-stream"
 import type { LLMProviderConfig, ProviderConfig } from "@/types/config/provider"
 import { isLLMProviderConfig, isTranslateProviderConfig } from "@/types/config/provider"
 import { configFieldsAtomMap, writeConfigAtom } from "@/utils/atoms/config"
@@ -43,14 +43,10 @@ import { SelectionToolbarFooterContent } from "../../components/selection-toolba
 import { SelectionToolbarTitleContent } from "../../components/selection-toolbar-title-content"
 import type { SelectionSession, SelectionToolbarTranslateRequestSlice } from "../atoms"
 import { selectionToolbarTranslateRequestAtom } from "../atoms"
-import type { SelectionToolbarInlineError } from "../inline-error"
-import {
-  createSelectionToolbarPrecheckError,
-  createSelectionToolbarRuntimeError,
-  isAbortError,
-} from "../inline-error"
+import { createSelectionToolbarPrecheckError } from "../inline-error"
 import { usePopoverSessionLifecycle } from "../use-popover-session-lifecycle"
 import { useSelectionOpenRequestResolver } from "../use-selection-open-request"
+import { useStreamingLlmTask } from "../use-streaming-llm-task"
 import { TargetLanguageSelector } from "./target-language-selector"
 import { TranslationContent } from "./translation-content"
 
@@ -211,33 +207,17 @@ export function useSelectionTranslationPopover() {
 
 export function SelectionTranslationProvider({ children }: { children: ReactNode }) {
   const [translatedText, setTranslatedText] = useState<string | undefined>(undefined)
-  const [thinking, setThinking] = useState<ThinkingSnapshot | null>(null)
-  const [error, setError] = useState<SelectionToolbarInlineError | null>(null)
-  const [isTranslating, setIsTranslating] = useState(false)
+  const { error, isRunning: isTranslating, task, thinking } = useStreamingLlmTask()
   const translateRequest = useAtomValue(selectionToolbarTranslateRequestAtom)
   const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
   const selectionToolbar = useAtomValue(configFieldsAtomMap.selectionToolbar)
   const setConfig = useSetAtom(writeConfigAtom)
-  const abortControllerRef = useRef<AbortController | null>(null)
   const lastTranslationRunKeyRef = useRef<string | null>(null)
-  const runIdRef = useRef(0)
 
   const resetTranslationState = useCallback(() => {
-    setIsTranslating(false)
+    task.resetTask()
     setTranslatedText(undefined)
-    setThinking(null)
-    setError(null)
-  }, [])
-
-  const cancelCurrentTranslation = useCallback((runId?: number) => {
-    if (runId !== undefined && runIdRef.current !== runId) {
-      return
-    }
-
-    runIdRef.current += 1
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = null
-  }, [])
+  }, [task])
 
   const {
     activeSession,
@@ -258,7 +238,7 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
       lastTranslationRunKeyRef.current = null
     },
     resetSessionExtra: () => {
-      cancelCurrentTranslation()
+      task.cancelRun()
       resetTranslationState()
     },
   })
@@ -282,25 +262,23 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
   )
 
   const handleRegenerate = useCallback(() => {
-    cancelCurrentTranslation()
+    task.cancelRun()
     setRerunNonce((prev) => prev + 1)
-  }, [cancelCurrentTranslation, setRerunNonce])
+  }, [setRerunNonce, task])
 
   const runTranslation = useCallback(
     async (runId: number) => {
       const preparedText = prepareTranslationText(selectionText)
 
       if (preparedText === "") {
-        if (runIdRef.current === runId) {
+        if (task.isCurrentRun(runId)) {
           resetTranslationState()
         }
         return
       }
 
-      setIsTranslating(true)
+      task.beginTask(runId)
       setTranslatedText(undefined)
-      setThinking(null)
-      setError(null)
 
       // Round-robin across the feature's selected providers: pick the next
       // usable (enabled, capability-matching) one for this run.
@@ -310,9 +288,11 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
       const providerIndex = nextFeatureProviderIndex("selectionTranslation", usableProviders.length)
       const provider = providerIndex >= 0 ? usableProviders[providerIndex] : undefined
       if (!provider) {
-        if (runIdRef.current === runId) {
-          setIsTranslating(false)
-          setError(createSelectionToolbarPrecheckError("translate", "providerUnavailable"))
+        if (task.isCurrentRun(runId)) {
+          task.failPrecheck(
+            runId,
+            createSelectionToolbarPrecheckError("translate", "providerUnavailable"),
+          )
         }
         return
       }
@@ -320,17 +300,16 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
       try {
         let nextTranslatedText = ""
         if (!isTranslateProviderConfig(provider.config)) {
-          if (runIdRef.current === runId) {
-            setIsTranslating(false)
-            setError(createSelectionToolbarPrecheckError("translate", "providerUnavailable"))
+          if (task.isCurrentRun(runId)) {
+            task.failPrecheck(
+              runId,
+              createSelectionToolbarPrecheckError("translate", "providerUnavailable"),
+            )
           }
           return
         } else if (isLLMProviderConfig(provider.config)) {
           const providerConfig = provider.config
-          setThinking({
-            status: "thinking",
-            text: "",
-          })
+          task.updateThinking(runId, { status: "thinking", text: "" })
 
           const nextSnapshot = await translateWithTextStream({
             preparedText,
@@ -338,22 +317,18 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
             providerConfig,
             translateRequest,
             onChunk: (data) => {
-              if (runIdRef.current === runId) {
+              if (task.isCurrentRun(runId)) {
                 setTranslatedText(data.output)
-                setThinking(data.thinking)
+                task.updateThinking(runId, data.thinking)
               }
             },
-            registerAbortController: (abortController) => {
-              abortControllerRef.current = abortController
-            },
+            registerAbortController: task.registerAbortController,
           })
 
           nextTranslatedText = nextSnapshot.output
-          if (runIdRef.current === runId) {
-            setThinking(nextSnapshot.thinking)
-          }
+          task.updateThinking(runId, nextSnapshot.thinking)
         } else {
-          setThinking(null)
+          task.updateThinking(runId, null)
           nextTranslatedText = await translateWithStandardProvider({
             text: preparedText,
             providerConfig: provider.config,
@@ -361,22 +336,16 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
           })
         }
 
-        if (runIdRef.current === runId) {
+        if (task.isCurrentRun(runId)) {
           setTranslatedText(nextTranslatedText)
         }
       } catch (caughtError) {
-        if (!isAbortError(caughtError) && runIdRef.current === runId) {
-          setThinking((prev) => (prev?.text ? { ...prev, status: "complete" } : null))
-          setError(createSelectionToolbarRuntimeError("translate", caughtError))
-        }
+        task.reportFailure(runId, "translate", caughtError)
       } finally {
-        if (runIdRef.current === runId) {
-          abortControllerRef.current = null
-          setIsTranslating(false)
-        }
+        task.endRun(runId)
       }
     },
-    [resetTranslationState, selectionText, translateRequest],
+    [resetTranslationState, selectionText, task, translateRequest],
   )
 
   const startTranslation = useEffectEvent((runId: number) => {
@@ -399,22 +368,14 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
     }
     lastTranslationRunKeyRef.current = nextRunKey
 
-    const runId = runIdRef.current + 1
-    runIdRef.current = runId
+    const runId = task.allocateRun()
 
     startTranslation(runId)
 
     return () => {
-      cancelCurrentTranslation(runId)
+      task.cancelRun(runId)
     }
-  }, [
-    activeSession?.id,
-    cancelCurrentTranslation,
-    isOpen,
-    popoverSessionKey,
-    rerunNonce,
-    translateRequestKey,
-  ])
+  }, [activeSession?.id, isOpen, popoverSessionKey, rerunNonce, task, translateRequestKey])
 
   const prepareToolbarOpen = useCallback(() => {
     if (!selectionSession) {

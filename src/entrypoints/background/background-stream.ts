@@ -25,7 +25,7 @@ import { createStructuredObjectSchema } from "@/utils/ai/structured-object-schem
 import { extractAISDKErrorMessage } from "@/utils/error/extract-message"
 import { logger } from "@/utils/logger"
 import { buildLocalGenerateTextParams } from "@/utils/providers/generate-params"
-import { getLanguageModelForConfig, getModelById } from "@/utils/providers/model"
+import { getLanguageModelById, getLanguageModelForConfig } from "@/utils/providers/model"
 
 const invalidStreamStartPayloadMessage = "Invalid stream start payload"
 const aiStreamProtocolErrorMessage = "Invalid AI stream response."
@@ -317,15 +317,35 @@ function validateFinishedStream(hasFinish: boolean, finishReason: string | undef
   }
 }
 
-async function consumeTextPartStream(
+interface ConsumedPartStream<TValue> {
+  /** Full accumulated stream text after every text delta. */
+  cumulativeText: string
+  /** The value the stream's snapshots last presented. */
+  value: TValue
+  /** Thinking snapshot with the status forced to "complete". */
+  thinking: ThinkingSnapshot
+}
+
+/**
+ * The single part loop both background streams walk: reasoning / finish /
+ * error handling is identical for text and structured-object streams, and
+ * only what a `text-delta` does with the accumulated text differs, which
+ * `onTextDelta` owns. It receives the accumulated text with the thinking phase
+ * already closed (the answer started), returns the value the stream now
+ * presents, and calls `emit` to push an intermediate snapshot when one is due.
+ */
+async function consumePartStream<TValue>(
   partStream: AsyncIterable<unknown>,
   options: {
-    onChunk?: StreamRuntimeOptions<BackgroundTextStreamSnapshot>["onChunk"]
     signal?: AbortSignal
+    onChunk?: (snapshot: BackgroundStreamSnapshot<TValue>) => void
+    initialValue: TValue
+    onTextDelta: (text: string, emit: (value: TValue) => void) => TValue | Promise<TValue>
   },
-): Promise<BackgroundTextStreamSnapshot> {
-  const { onChunk, signal } = options
+): Promise<ConsumedPartStream<TValue>> {
+  const { signal, onChunk, initialValue, onTextDelta } = options
   let cumulativeText = ""
+  let value = initialValue
   let thinking: ThinkingSnapshot = {
     status: "thinking",
     text: "",
@@ -343,7 +363,9 @@ async function consumeTextPartStream(
       case "text-delta": {
         cumulativeText += getStringPartField(part, "text")
         thinking = endThinkingOnOutput(thinking)
-        onChunk?.(createStreamSnapshot(cumulativeText, thinking))
+        value = await onTextDelta(cumulativeText, (emitted) => {
+          onChunk?.(createStreamSnapshot(emitted, thinking))
+        })
         break
       }
       case "reasoning-start": {
@@ -358,7 +380,7 @@ async function consumeTextPartStream(
           status: "thinking",
           text: thinking.text + getStringPartField(part, "text"),
         }
-        onChunk?.(createStreamSnapshot(cumulativeText, thinking))
+        onChunk?.(createStreamSnapshot(value, thinking))
         break
       }
       case "reasoning-end": {
@@ -366,7 +388,7 @@ async function consumeTextPartStream(
           ...thinking,
           status: "complete",
         }
-        onChunk?.(createStreamSnapshot(cumulativeText, thinking))
+        onChunk?.(createStreamSnapshot(value, thinking))
         break
       }
       case "reasoning-file": {
@@ -388,12 +410,34 @@ async function consumeTextPartStream(
 
   validateFinishedStream(hasFinish, finishReason)
 
-  thinking = {
-    ...thinking,
-    status: "complete",
+  return {
+    cumulativeText,
+    value,
+    thinking: {
+      ...thinking,
+      status: "complete",
+    },
   }
+}
 
-  return createStreamSnapshot(cumulativeText, thinking)
+async function consumeTextPartStream(
+  partStream: AsyncIterable<unknown>,
+  options: {
+    onChunk?: StreamRuntimeOptions<BackgroundTextStreamSnapshot>["onChunk"]
+    signal?: AbortSignal
+  },
+): Promise<BackgroundTextStreamSnapshot> {
+  const { value, thinking } = await consumePartStream<string>(partStream, {
+    signal: options.signal,
+    onChunk: options.onChunk,
+    initialValue: "",
+    onTextDelta: (text, emit) => {
+      emit(text)
+      return text
+    },
+  })
+
+  return createStreamSnapshot(value, thinking)
 }
 
 async function consumeStructuredObjectPartStream<TOutput extends Record<string, unknown>>(
@@ -405,82 +449,30 @@ async function consumeStructuredObjectPartStream<TOutput extends Record<string, 
   },
 ): Promise<BackgroundStreamSnapshot<TOutput>> {
   const { objectSchema, onChunk, signal } = options
-  let cumulativeText = ""
   let cumulativeValue: Record<string, unknown> = {}
-  let thinking: ThinkingSnapshot = {
-    status: "thinking",
-    text: "",
-  }
-  let hasFinish = false
-  let finishReason: string | undefined
 
-  for await (const rawPart of partStream) {
-    if (signal?.aborted) {
-      throw new DOMException("stream aborted", "AbortError")
-    }
-
-    const part = toAiStreamPart(rawPart)
-    switch (part.type) {
-      case "text-delta": {
-        cumulativeText += getStringPartField(part, "text")
-        thinking = endThinkingOnOutput(thinking)
-        const partial = await parsePartialJson(cumulativeText)
+  const { cumulativeText, thinking } = await consumePartStream<Record<string, unknown>>(
+    partStream,
+    {
+      signal,
+      onChunk,
+      initialValue: {},
+      onTextDelta: async (text, emit) => {
+        // A delta only reaches the UI when its JSON parses into an object:
+        // mid-fragment deltas are kept until the next one completes them.
+        const partial = await parsePartialJson(text)
         if (isRecord(partial.value)) {
           cumulativeValue = { ...cumulativeValue, ...partial.value }
-          onChunk?.(createStreamSnapshot(cumulativeValue, thinking))
+          emit(cumulativeValue)
         }
-        break
-      }
-      case "reasoning-start": {
-        thinking = {
-          ...thinking,
-          status: "thinking",
-        }
-        break
-      }
-      case "reasoning-delta": {
-        thinking = {
-          status: "thinking",
-          text: thinking.text + getStringPartField(part, "text"),
-        }
-        onChunk?.(createStreamSnapshot(cumulativeValue, thinking))
-        break
-      }
-      case "reasoning-end": {
-        thinking = {
-          ...thinking,
-          status: "complete",
-        }
-        onChunk?.(createStreamSnapshot(cumulativeValue, thinking))
-        break
-      }
-      case "reasoning-file": {
-        break
-      }
-      case "finish": {
-        hasFinish = true
-        finishReason = getStreamFinishReason(part)
-        break
-      }
-      case "error": {
-        throw getStreamPartError(part)
-      }
-      default: {
-        break
-      }
-    }
-  }
-
-  validateFinishedStream(hasFinish, finishReason)
+        return cumulativeValue
+      },
+    },
+  )
 
   try {
     const finalJson = await parsePartialJson(cumulativeText)
     const finalValue = objectSchema.parse(finalJson.value)
-    thinking = {
-      ...thinking,
-      status: "complete",
-    }
-
     return createStreamSnapshot(finalValue, thinking)
   } catch (error) {
     throw new BackgroundStreamError("output_validation_failed", aiOutputValidationErrorMessage, {
@@ -489,17 +481,31 @@ async function consumeStructuredObjectPartStream<TOutput extends Record<string, 
   }
 }
 
-async function createLocalTextPartStream(
-  serializablePayload: BackgroundStreamTextSerializablePayload,
-  options: StreamRuntimeOptions<BackgroundTextStreamSnapshot> = {},
+/**
+ * One streamText call against the provider registry, for the background port
+ * handlers. The structured-object variant is the same call with an `output`
+ * schema attached — pass `objectSchema` to get it.
+ */
+async function createLocalPartStream<
+  TOutput extends Record<string, unknown> = Record<string, unknown>,
+>(
+  serializablePayload: BackgroundStreamTextSerializablePayload & {
+    outputSchema?: BackgroundStructuredObjectOutputField[]
+  },
+  options: {
+    signal?: AbortSignal
+    onError?: StreamRuntimeOptions<BackgroundTextStreamSnapshot>["onError"]
+  } = {},
+  objectSchema?: z.ZodType<TOutput>,
 ): Promise<AsyncIterable<unknown>> {
-  const { providerId, ...streamTextParams } = serializablePayload
+  const { providerId, outputSchema: _outputSchema, ...streamTextParams } = serializablePayload
   const { signal, onError } = options
 
-  const model = await getModelById(providerId)
+  const model = await getLanguageModelById(providerId)
   const result = streamText({
     ...(streamTextParams as Parameters<typeof streamText>[0]),
     model,
+    ...(objectSchema ? { output: Output.object({ schema: objectSchema }) } : {}),
     abortSignal: signal,
     onError: ({ error }) => {
       onError?.(error)
@@ -566,38 +572,12 @@ export async function runStreamTextInBackground(
     throw new DOMException("stream aborted", "AbortError")
   }
 
-  const partStream = await createLocalTextPartStream(serializablePayload, options)
+  const partStream = await createLocalPartStream(serializablePayload, options)
 
   return consumeTextPartStream(partStream, {
     onChunk,
     signal,
   })
-}
-
-async function createLocalStructuredObjectPartStream<TOutput extends Record<string, unknown>>(
-  serializablePayload: BackgroundStreamTextSerializablePayload & {
-    outputSchema?: BackgroundStructuredObjectOutputField[]
-  },
-  objectSchema: z.ZodType<TOutput>,
-  options: StreamRuntimeOptions<BackgroundStructuredObjectStreamSnapshot> = {},
-): Promise<AsyncIterable<unknown>> {
-  const { providerId, outputSchema: _outputSchema, ...streamParams } = serializablePayload
-  const { signal, onError } = options
-
-  const model = await getModelById(providerId)
-  const result = streamText({
-    ...(streamParams as Parameters<typeof streamText>[0]),
-    model,
-    output: Output.object({
-      schema: objectSchema,
-    }),
-    abortSignal: signal,
-    onError: ({ error }) => {
-      onError?.(error)
-    },
-  })
-
-  return result.stream
 }
 
 export async function runStructuredObjectStreamInBackground(
@@ -611,11 +591,7 @@ export async function runStructuredObjectStreamInBackground(
   }
 
   const objectSchema = createStructuredObjectSchema(serializablePayload.outputSchema)
-  const partStream = await createLocalStructuredObjectPartStream(
-    serializablePayload,
-    objectSchema,
-    options,
-  )
+  const partStream = await createLocalPartStream(serializablePayload, options, objectSchema)
 
   return consumeStructuredObjectPartStream(partStream, {
     objectSchema,

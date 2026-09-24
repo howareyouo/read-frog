@@ -145,7 +145,7 @@ export async function resolveSubtitlesProviderRef(
   const resolved = resolveProviderRefForCapability(
     "videoSubtitles",
     config.providersConfig,
-    config.videoSubtitles.providerId,
+    config.videoSubtitles.providerIds[0] ?? "",
   )
   if (!resolved) {
     return null
@@ -157,7 +157,7 @@ export async function resolveSubtitlesProviderRef(
  * The next AI-segmentation provider in the feature's rotation.
  *
  * Callers used to hand segmentation the primary ref above, which reads
- * `videoSubtitles.providerId` — so every chunk of every video was cut by the
+ * `videoSubtitles.providerIds[0]` — so every chunk of every video was cut by the
  * one interface at the top of the list while the other keys sat idle, and a
  * pure-translate primary (Microsoft / Google / DeepLX) was handed a prompt it
  * cannot answer. Segmentation is a generation, so it takes the same selection

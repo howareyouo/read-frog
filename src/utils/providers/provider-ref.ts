@@ -1,7 +1,10 @@
 import type { Config } from "@/types/config/config"
 import type { TranslateProviderConfig } from "@/types/config/provider"
 import { isLLMProviderConfig } from "@/types/config/provider"
-import { getFeatureProviderIds } from "@/utils/constants/feature-providers"
+import {
+  getFeatureProviderIds,
+  getPrimaryFeatureProviderId,
+} from "@/utils/constants/feature-providers"
 import { resolveFeatureProviderRefForRequest } from "./feature-provider-resolver"
 import { resolveProviderRefForCapability } from "./provider-registry"
 
@@ -26,13 +29,14 @@ export type UnwrappedProviderRef = TranslateProviderConfig
 export type SerializableProviderRef = { kind: "local"; config: TranslateProviderConfig }
 
 export function resolvePageTranslationProvider(config: Config): UnwrappedProviderRef {
+  const providerId = getPrimaryFeatureProviderId(config, "pageTranslation")
   const resolved = resolveProviderRefForCapability(
     "pageTranslation",
     config.providersConfig,
-    config.pageTranslation.providerId,
+    providerId,
   )
   if (!resolved) {
-    throw new Error(`No page translation provider for id "${config.pageTranslation.providerId}"`)
+    throw new Error(`No page translation provider for id "${providerId}"`)
   }
   return resolved.config
 }

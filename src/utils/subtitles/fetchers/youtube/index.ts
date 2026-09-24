@@ -21,6 +21,7 @@ import { i18n } from "@/utils/i18n"
 import { OverlaySubtitlesError } from "@/utils/subtitles/errors"
 import { getYoutubeVideoId } from "@/utils/subtitles/video-id"
 import type { SubtitlesFragment } from "../../types"
+import { sleep } from "../../utils"
 import type { SubtitlesFetcher } from "../types"
 import { detectFormat } from "./format-detector"
 import { filterNoiseFromEvents } from "./noise-filter"
@@ -36,8 +37,30 @@ import type { CaptionTrack, PlayerData, YoutubeTimedText } from "./types"
 import { youtubeSubtitlesResponseSchema } from "./types"
 import { buildSubtitleUrl } from "./url-builder"
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+interface PollOptions {
+  attempts: number
+  intervalMs: number
+}
+
+/**
+ * Poll `probe` up to `attempts` times, waiting `intervalMs` after each attempt
+ * that did not succeed. Resolves with the first non-null probe result, or null
+ * once the attempts run out (callers decide how to fall through).
+ */
+async function pollUntil<T>(
+  probe: () => Promise<T | null>,
+  { attempts, intervalMs }: PollOptions,
+): Promise<T | null> {
+  for (let i = 0; i < attempts; i++) {
+    const result = await probe()
+    if (result !== null) {
+      return result
+    }
+
+    await sleep(intervalMs)
+  }
+
+  return null
 }
 
 function hasSelectedTrack(playerData: PlayerData): boolean {
@@ -260,31 +283,41 @@ export class YoutubeSubtitlesFetcher implements SubtitlesFetcher {
     await this.ensureSubtitlesEnabled()
 
     let latest = playerData
-    for (let i = 0; i < MAX_SELECTED_TRACK_WAIT_ATTEMPTS; i++) {
-      const response = await this.requestPlayerData(videoId)
-      if (response.success && response.data) {
-        latest = response.data
-        if (hasSelectedTrack(latest)) {
-          return latest
+    const selectedTrack = await pollUntil(
+      async () => {
+        const response = await this.requestPlayerData(videoId)
+        if (response.success && response.data) {
+          latest = response.data
+          if (hasSelectedTrack(latest)) {
+            return latest
+          }
         }
-      }
+        return null
+      },
+      {
+        attempts: MAX_SELECTED_TRACK_WAIT_ATTEMPTS,
+        intervalMs: SELECTED_TRACK_WAIT_INTERVAL_MS,
+      },
+    )
 
-      await sleep(SELECTED_TRACK_WAIT_INTERVAL_MS)
-    }
-
-    return latest
+    return selectedTrack ?? latest
   }
 
   private async waitForPlayerState(videoId: string): Promise<void> {
-    for (let i = 0; i < MAX_STATE_WAIT_ATTEMPTS; i++) {
-      const response = await this.requestPlayerData(videoId)
+    await pollUntil(
+      async () => {
+        const response = await this.requestPlayerData(videoId)
 
-      if (response.success && response.data && response.data.playerState >= 1) {
-        return
-      }
-
-      await sleep(STATE_WAIT_INTERVAL_MS)
-    }
+        if (response.success && response.data && response.data.playerState >= 1) {
+          return response.data
+        }
+        return null
+      },
+      {
+        attempts: MAX_STATE_WAIT_ATTEMPTS,
+        intervalMs: STATE_WAIT_INTERVAL_MS,
+      },
+    )
   }
 
   private async getPlayerDataWithPot(videoId: string): Promise<PlayerData> {
@@ -306,15 +339,24 @@ export class YoutubeSubtitlesFetcher implements SubtitlesFetcher {
 
     await this.ensureSubtitlesEnabled()
 
-    for (let i = 0; i < MAX_POT_WAIT_ATTEMPTS; i++) {
-      await sleep(POT_WAIT_INTERVAL_MS)
-      const pollResponse = await this.requestPlayerData(videoId)
-      if (pollResponse.success && pollResponse.data) {
-        playerData = pollResponse.data
-        if (this.hasPotInAudioTracks(playerData) || playerData.cachedTimedtextUrl) {
-          return playerData
+    const potPlayerData = await pollUntil(
+      async () => {
+        const pollResponse = await this.requestPlayerData(videoId)
+        if (pollResponse.success && pollResponse.data) {
+          playerData = pollResponse.data
+          if (this.hasPotInAudioTracks(playerData) || playerData.cachedTimedtextUrl) {
+            return playerData
+          }
         }
-      }
+        return null
+      },
+      {
+        attempts: MAX_POT_WAIT_ATTEMPTS,
+        intervalMs: POT_WAIT_INTERVAL_MS,
+      },
+    )
+    if (potPlayerData) {
+      return potPlayerData
     }
 
     const timedtextUrl = await this.waitForTimedtextUrl(videoId)
