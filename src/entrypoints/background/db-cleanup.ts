@@ -1,5 +1,7 @@
+import type { Table } from "dexie"
 import { browser } from "#imports"
 import { db } from "@/utils/db/dexie/db"
+import type BatchRequestRecord from "@/utils/db/dexie/tables/batch-request-record"
 import { logger } from "@/utils/logger"
 
 export const CHECK_INTERVAL_MINUTES = 24 * 60
@@ -17,163 +19,72 @@ export const SUMMARY_CACHE_MAX_AGE_MINUTES = 7 * 24 * 60
 export const AI_SEGMENTATION_CACHE_CLEANUP_ALARM = "ai-segmentation-cache-cleanup"
 export const AI_SEGMENTATION_CACHE_MAX_AGE_MINUTES = 7 * 24 * 60
 
-export async function setUpDatabaseCleanup() {
-  // Set up periodic alarms (only if they don't exist)
-  const existingCacheAlarm = await browser.alarms.get(TRANSLATION_CACHE_CLEANUP_ALARM)
-  if (!existingCacheAlarm) {
-    void browser.alarms.create(TRANSLATION_CACHE_CLEANUP_ALARM, {
-      delayInMinutes: 1,
-      periodInMinutes: CHECK_INTERVAL_MINUTES,
-    })
-  }
-
-  const existingRequestAlarm = await browser.alarms.get(REQUEST_RECORD_CLEANUP_ALARM)
-  if (!existingRequestAlarm) {
-    void browser.alarms.create(REQUEST_RECORD_CLEANUP_ALARM, {
-      delayInMinutes: 1,
-      periodInMinutes: CHECK_INTERVAL_MINUTES,
-    })
-  }
-
-  const existingSummaryAlarm = await browser.alarms.get(SUMMARY_CACHE_CLEANUP_ALARM)
-  if (!existingSummaryAlarm) {
-    void browser.alarms.create(SUMMARY_CACHE_CLEANUP_ALARM, {
-      delayInMinutes: 1,
-      periodInMinutes: CHECK_INTERVAL_MINUTES,
-    })
-  }
-
-  const existingSegmentationAlarm = await browser.alarms.get(AI_SEGMENTATION_CACHE_CLEANUP_ALARM)
-  if (!existingSegmentationAlarm) {
-    void browser.alarms.create(AI_SEGMENTATION_CACHE_CLEANUP_ALARM, {
-      delayInMinutes: 1,
-      periodInMinutes: CHECK_INTERVAL_MINUTES,
-    })
-  }
-
-  // Register the alarm listener
-  browser.alarms.onAlarm.addListener(async (alarm) => {
-    if (alarm.name === TRANSLATION_CACHE_CLEANUP_ALARM) {
-      await cleanupOldTranslationCache()
-    } else if (alarm.name === REQUEST_RECORD_CLEANUP_ALARM) {
-      await cleanupOldRequestRecords()
-    } else if (alarm.name === SUMMARY_CACHE_CLEANUP_ALARM) {
-      await cleanupOldSummaryCache()
-    } else if (alarm.name === AI_SEGMENTATION_CACHE_CLEANUP_ALARM) {
-      await cleanupOldAiSegmentationCache()
-    }
-  })
+type CleanupJob = {
+  alarmName: string
+  table: Table
+  getCutoff: () => Date
+  countPolicy: {
+    maxCount: number
+    keyOf: (record: BatchRequestRecord) => string
+    prunedLog: (excessCount: number) => string
+  } | null
+  oldDeletedLog: (deletedCount: number) => string
+  oldErrorLog: string
+  allDeletedLog: string
+  allErrorLog: string
 }
 
-async function cleanupOldTranslationCache() {
-  try {
-    const cutoffDate = new Date()
-    cutoffDate.setTime(cutoffDate.getTime() - TRANSLATION_CACHE_MAX_AGE_MINUTES * 60 * 1000)
-
-    // Delete all cache entries older than the cutoff date
-    const deletedCount = await db.translationCache.where("createdAt").below(cutoffDate).delete()
-
-    if (deletedCount > 0) {
-      logger.info(`Cache cleanup: Deleted ${deletedCount} old translation cache entries`)
-    }
-  } catch (error) {
-    logger.error("Failed to cleanup old cache:", error)
-  }
+function cutoffMinutesAgo(minutes: number) {
+  const cutoffDate = new Date()
+  cutoffDate.setTime(cutoffDate.getTime() - minutes * 60 * 1000)
+  return cutoffDate
 }
 
-export async function cleanupAllTranslationCache() {
-  try {
-    // Delete all translation cache entries
-    await db.translationCache.clear()
-
-    logger.info(`Cache cleanup: Deleted all translation cache entries`)
-  } catch (error) {
-    logger.error("Failed to cleanup all cache:", error)
-    throw error
-  }
+function cutoffDaysAgo(days: number) {
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - days)
+  return cutoffDate
 }
 
-async function cleanupOldRequestRecords() {
-  try {
-    const totalCount = await db.batchRequestRecord.count()
-
-    // Check if count exceeds maximum
-    if (totalCount > REQUEST_RECORD_MAX_COUNT) {
-      const excessCount = totalCount - REQUEST_RECORD_MAX_COUNT
-
-      // Delete oldest records to bring count back to maximum
-      const oldestRecords = await db.batchRequestRecord
-        .orderBy("createdAt")
-        .limit(excessCount)
-        .toArray()
-
-      const keysToDelete = oldestRecords.map((record) => record.key)
-      await db.batchRequestRecord.bulkDelete(keysToDelete)
-
-      logger.info(
-        `Request records cleanup: Deleted ${excessCount} oldest records (count exceeded ${REQUEST_RECORD_MAX_COUNT})`,
-      )
-    }
-
-    // Delete records older than max age
-    const cutoffDate = new Date()
-    cutoffDate.setDate(cutoffDate.getDate() - REQUEST_RECORD_MAX_AGE_DAYS)
-
-    const deletedByAgeCount = await db.batchRequestRecord
-      .where("createdAt")
-      .below(cutoffDate)
-      .delete()
-
-    if (deletedByAgeCount > 0) {
-      logger.info(
-        `Request records cleanup: Deleted ${deletedByAgeCount} records older than ${REQUEST_RECORD_MAX_AGE_DAYS} days`,
-      )
-    }
-  } catch (error) {
-    logger.error("Failed to cleanup old request records:", error)
-  }
+const translationCacheCleanupJob: CleanupJob = {
+  alarmName: TRANSLATION_CACHE_CLEANUP_ALARM,
+  table: db.translationCache,
+  getCutoff: () => cutoffMinutesAgo(TRANSLATION_CACHE_MAX_AGE_MINUTES),
+  countPolicy: null,
+  oldDeletedLog: (deletedCount) =>
+    `Cache cleanup: Deleted ${deletedCount} old translation cache entries`,
+  oldErrorLog: "Failed to cleanup old cache:",
+  allDeletedLog: "Cache cleanup: Deleted all translation cache entries",
+  allErrorLog: "Failed to cleanup all cache:",
 }
 
-export async function cleanupAllRequestRecords() {
-  try {
-    // Delete all batch request records
-    await db.batchRequestRecord.clear()
-
-    logger.info(`Request records cleanup: Deleted all batch request records`)
-  } catch (error) {
-    logger.error("Failed to cleanup all request records:", error)
-    throw error
-  }
+const requestRecordCleanupJob: CleanupJob = {
+  alarmName: REQUEST_RECORD_CLEANUP_ALARM,
+  table: db.batchRequestRecord,
+  getCutoff: () => cutoffDaysAgo(REQUEST_RECORD_MAX_AGE_DAYS),
+  countPolicy: {
+    maxCount: REQUEST_RECORD_MAX_COUNT,
+    keyOf: (record) => record.key,
+    prunedLog: (excessCount) =>
+      `Request records cleanup: Deleted ${excessCount} oldest records (count exceeded ${REQUEST_RECORD_MAX_COUNT})`,
+  },
+  oldDeletedLog: (deletedCount) =>
+    `Request records cleanup: Deleted ${deletedCount} records older than ${REQUEST_RECORD_MAX_AGE_DAYS} days`,
+  oldErrorLog: "Failed to cleanup old request records:",
+  allDeletedLog: "Request records cleanup: Deleted all batch request records",
+  allErrorLog: "Failed to cleanup all request records:",
 }
 
-async function cleanupOldSummaryCache() {
-  try {
-    const cutoffDate = new Date()
-    cutoffDate.setTime(cutoffDate.getTime() - SUMMARY_CACHE_MAX_AGE_MINUTES * 60 * 1000)
-
-    // Delete all summary cache entries older than the cutoff date
-    const deletedCount = await db.articleSummaryCache.where("createdAt").below(cutoffDate).delete()
-
-    if (deletedCount > 0) {
-      logger.info(
-        `Summary cache cleanup: Deleted ${deletedCount} old article summary cache entries`,
-      )
-    }
-  } catch (error) {
-    logger.error("Failed to cleanup old summary cache:", error)
-  }
-}
-
-export async function cleanupAllSummaryCache() {
-  try {
-    // Delete all article summary cache entries
-    await db.articleSummaryCache.clear()
-
-    logger.info(`Summary cache cleanup: Deleted all article summary cache entries`)
-  } catch (error) {
-    logger.error("Failed to cleanup all summary cache:", error)
-    throw error
-  }
+const summaryCacheCleanupJob: CleanupJob = {
+  alarmName: SUMMARY_CACHE_CLEANUP_ALARM,
+  table: db.articleSummaryCache,
+  getCutoff: () => cutoffMinutesAgo(SUMMARY_CACHE_MAX_AGE_MINUTES),
+  countPolicy: null,
+  oldDeletedLog: (deletedCount) =>
+    `Summary cache cleanup: Deleted ${deletedCount} old article summary cache entries`,
+  oldErrorLog: "Failed to cleanup old summary cache:",
+  allDeletedLog: "Summary cache cleanup: Deleted all article summary cache entries",
+  allErrorLog: "Failed to cleanup all summary cache:",
 }
 
 /**
@@ -185,29 +96,106 @@ export async function cleanupAllSummaryCache() {
  * `runAiSegmentSubtitles` still hashed the provider config into the key can
  * never be read again, and this is what eventually sweeps them out.
  */
-async function cleanupOldAiSegmentationCache() {
-  try {
-    const cutoffDate = new Date()
-    cutoffDate.setTime(cutoffDate.getTime() - AI_SEGMENTATION_CACHE_MAX_AGE_MINUTES * 60 * 1000)
+const aiSegmentationCacheCleanupJob: CleanupJob = {
+  alarmName: AI_SEGMENTATION_CACHE_CLEANUP_ALARM,
+  table: db.aiSegmentationCache,
+  getCutoff: () => cutoffMinutesAgo(AI_SEGMENTATION_CACHE_MAX_AGE_MINUTES),
+  countPolicy: null,
+  oldDeletedLog: (deletedCount) =>
+    `AI segmentation cache cleanup: Deleted ${deletedCount} old segmentation cache entries`,
+  oldErrorLog: "Failed to cleanup old AI segmentation cache:",
+  allDeletedLog: "AI segmentation cache cleanup: Deleted all entries",
+  allErrorLog: "Failed to cleanup all AI segmentation cache:",
+}
 
-    const deletedCount = await db.aiSegmentationCache.where("createdAt").below(cutoffDate).delete()
+const CLEANUP_JOBS = [
+  translationCacheCleanupJob,
+  requestRecordCleanupJob,
+  summaryCacheCleanupJob,
+  aiSegmentationCacheCleanupJob,
+]
+
+const CLEANUP_JOBS_BY_ALARM = new Map<string, CleanupJob>(
+  CLEANUP_JOBS.map((job) => [job.alarmName, job]),
+)
+
+export async function setUpDatabaseCleanup() {
+  // Set up periodic alarms (only if they don't exist)
+  for (const job of CLEANUP_JOBS) {
+    const existingAlarm = await browser.alarms.get(job.alarmName)
+    if (!existingAlarm) {
+      void browser.alarms.create(job.alarmName, {
+        delayInMinutes: 1,
+        periodInMinutes: CHECK_INTERVAL_MINUTES,
+      })
+    }
+  }
+
+  // Register the alarm listener
+  browser.alarms.onAlarm.addListener(async (alarm) => {
+    const job = CLEANUP_JOBS_BY_ALARM.get(alarm.name)
+    if (job) {
+      await runCleanupJob(job)
+    }
+  })
+}
+
+async function runCleanupJob(job: CleanupJob) {
+  try {
+    if (job.countPolicy) {
+      const { maxCount, keyOf, prunedLog } = job.countPolicy
+      const totalCount = await job.table.count()
+
+      // Check if count exceeds maximum
+      if (totalCount > maxCount) {
+        const excessCount = totalCount - maxCount
+
+        // Delete oldest records to bring count back to maximum
+        const oldestRecords = await job.table.orderBy("createdAt").limit(excessCount).toArray()
+
+        const keysToDelete = oldestRecords.map(keyOf)
+        await job.table.bulkDelete(keysToDelete)
+
+        logger.info(prunedLog(excessCount))
+      }
+    }
+
+    const cutoffDate = job.getCutoff()
+
+    // Delete all cache entries older than the cutoff date
+    const deletedCount = await job.table.where("createdAt").below(cutoffDate).delete()
 
     if (deletedCount > 0) {
-      logger.info(
-        `AI segmentation cache cleanup: Deleted ${deletedCount} old segmentation cache entries`,
-      )
+      logger.info(job.oldDeletedLog(deletedCount))
     }
   } catch (error) {
-    logger.error("Failed to cleanup old AI segmentation cache:", error)
+    logger.error(job.oldErrorLog, error)
   }
 }
 
-export async function cleanupAllAiSegmentationCache() {
+async function runCleanupAll(job: CleanupJob) {
   try {
-    await db.aiSegmentationCache.clear()
-    logger.info("AI segmentation cache cleanup: Deleted all entries")
+    await job.table.clear()
+
+    logger.info(job.allDeletedLog)
   } catch (error) {
-    logger.error("Failed to cleanup all AI segmentation cache:", error)
+    logger.error(job.allErrorLog, error)
     throw error
   }
+}
+
+export async function cleanupAllTranslationCache() {
+  await runCleanupAll(translationCacheCleanupJob)
+}
+
+export async function cleanupAllRequestRecords() {
+  await runCleanupAll(requestRecordCleanupJob)
+}
+
+export async function cleanupAllSummaryCache() {
+  await runCleanupAll(summaryCacheCleanupJob)
+}
+
+export async function cleanupAllAiSegmentationCache() {
+  await runCleanupAll(aiSegmentationCacheCleanupJob)
 }

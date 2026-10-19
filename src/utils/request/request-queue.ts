@@ -7,7 +7,7 @@ import type { RequestRetryPolicy } from "./retry-policy"
 import { defaultRequestRetryPolicy } from "./retry-policy"
 import { createDeferred, detachMatchingTaskScopes, joinTaskScopes } from "./scoped-deferred-task"
 
-export interface RequestTask {
+interface RequestTask {
   id: string
   thunk: (signal?: AbortSignal) => Promise<any>
   promise: Promise<any>
@@ -41,7 +41,7 @@ type QueuedRequestTask = RequestTask & {
   cancelScopes: Set<string> | null
 }
 
-export interface QueueOptions {
+interface QueueOptions {
   rate: number // tokens/sec
   capacity: number // token bucket size
   timeoutMs: number

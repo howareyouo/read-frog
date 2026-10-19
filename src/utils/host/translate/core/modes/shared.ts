@@ -1,5 +1,17 @@
 import type { Config } from "@/types/config/config"
+import type { TranslationMode } from "@/types/config/translate"
+import {
+  CONTENT_WRAPPER_CLASS,
+  NOTRANSLATE_CLASS,
+  TRANSLATION_MODE_ATTRIBUTE,
+  VIRTUAL_PARAGRAPH_ATTRIBUTE,
+  WALKED_ATTRIBUTE,
+} from "../../../../constants/dom-labels"
+import { shouldFilterSmallParagraph } from "../../filter-small-paragraph"
 import { normalizeForComparison } from "../../text-preparation"
+import { shouldSkipAsTargetLanguage } from "../../target-language-skip"
+import { setTranslationDirAndLang } from "../../translation-attributes"
+import { createSpinnerInside } from "../../ui/spinner"
 import { translatingNodes } from "../translation-state"
 
 /**
@@ -42,11 +54,39 @@ export function getDisplayTranslation(
 }
 
 /**
- * The per-run payload every mode strategy receives from the dispatcher.
+ * Paragraph gate shared by both modes: the compact-paragraph heuristic, then
+ * target-language skip — short-circuited, so same-language text never reaches
+ * the second check.
  */
-export interface ModeRunContext {
-  config: Config
-  toggle: boolean
-  forceRetranslation: boolean
-  forceBlockTranslation: boolean
+export async function isParagraphFilteredOut(text: string, config: Config): Promise<boolean> {
+  return (
+    (await shouldFilterSmallParagraph(text, config)) ||
+    (await shouldSkipAsTargetLanguage(text, config))
+  )
+}
+
+/**
+ * The span wrapper + spinner both modes insert before their provider
+ * round-trip: the wrapper is the spinner vehicle and afterwards the translation
+ * container (bilingual) or the swap fallback (translationOnly).
+ */
+export function createModeWrapper(
+  ownerDoc: Document,
+  walkId: string,
+  mode: TranslationMode,
+  config: Config,
+  options: { virtualParagraphId?: string; style?: Partial<CSSStyleDeclaration> } = {},
+): { spinner: HTMLElement; wrapper: HTMLElement } {
+  const wrapper = ownerDoc.createElement("span")
+  wrapper.className = `${NOTRANSLATE_CLASS} ${CONTENT_WRAPPER_CLASS}`
+  wrapper.setAttribute(TRANSLATION_MODE_ATTRIBUTE, mode)
+  wrapper.setAttribute(WALKED_ATTRIBUTE, walkId)
+  if (options.virtualParagraphId) {
+    wrapper.setAttribute(VIRTUAL_PARAGRAPH_ATTRIBUTE, options.virtualParagraphId)
+  }
+  if (options.style) {
+    Object.assign(wrapper.style, options.style)
+  }
+  setTranslationDirAndLang(wrapper, config)
+  return { spinner: createSpinnerInside(wrapper), wrapper }
 }

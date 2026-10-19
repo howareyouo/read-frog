@@ -1,13 +1,7 @@
 import type { Config } from "@/types/config/config"
-import type { TranslationMode } from "@/types/config/translate"
 import {
-  CONTENT_WRAPPER_CLASS,
-  NOTRANSLATE_CLASS,
   TRANSLATION_ERROR_CONTAINER_CLASS,
-  TRANSLATION_MODE_ATTRIBUTE,
   TRANSLATION_ONLY_ATTRIBUTE,
-  VIRTUAL_PARAGRAPH_ATTRIBUTE,
-  WALKED_ATTRIBUTE,
 } from "../../../../constants/dom-labels"
 import {
   isBlockTransNode,
@@ -36,14 +30,8 @@ import {
 import { insertTranslatedNodeIntoWrapper } from "../../dom/translation-insertion"
 import { findPreviousTranslatedWrapperInside } from "../../dom/translation-wrapper"
 import { insertVirtualParagraphWrappers } from "../../dom/virtual-paragraph-insertion"
-import { shouldFilterSmallParagraph } from "../../filter-small-paragraph"
-import { shouldSkipAsTargetLanguage } from "../../target-language-skip"
 import { translateTextForPage } from "../../translate-variants"
-import { setTranslationDirAndLang } from "../../translation-attributes"
-import {
-  createSpinnerInside,
-  getTranslatedTextAndRemoveSpinner,
-} from "../../ui/spinner"
+import { getTranslatedTextAndRemoveSpinner } from "../../ui/spinner"
 import { isNumericContent } from "../../ui/translation-utils"
 import type {
   BilingualTranslationState,
@@ -69,39 +57,28 @@ import {
 } from "../translation-state"
 import {
   claimNodesForTranslation,
+  createModeWrapper,
   getDisplayTranslation,
+  isParagraphFilteredOut,
   releaseNodesFromTranslation,
 } from "./shared"
 
 let virtualParagraphGroupSequence = 0
 
-function createBilingualWrapper(
+const createBilingualWrapper = (
   ownerDoc: Document,
   walkId: string,
   config: Config,
   virtualParagraphId?: string,
-): { spinner: HTMLElement; wrapper: HTMLElement } {
-  const wrapper = ownerDoc.createElement("span")
-  wrapper.className = `${NOTRANSLATE_CLASS} ${CONTENT_WRAPPER_CLASS}`
-  wrapper.setAttribute(TRANSLATION_MODE_ATTRIBUTE, "bilingual" satisfies TranslationMode)
-  wrapper.setAttribute(WALKED_ATTRIBUTE, walkId)
-  if (virtualParagraphId) {
-    wrapper.setAttribute(VIRTUAL_PARAGRAPH_ATTRIBUTE, virtualParagraphId)
-  }
-  setTranslationDirAndLang(wrapper, config)
-  return { spinner: createSpinnerInside(wrapper), wrapper }
-}
+): { spinner: HTMLElement; wrapper: HTMLElement } =>
+  createModeWrapper(ownerDoc, walkId, "bilingual", config, { virtualParagraphId })
 
 async function filterVirtualParagraphUnits(
   units: VirtualParagraphUnit[],
   config: Config,
 ): Promise<VirtualParagraphUnit[]> {
   const included = await Promise.all(
-    units.map(async (unit) => {
-      if (isNumericContent(unit.text)) return false
-      if (await shouldFilterSmallParagraph(unit.text, config)) return false
-      return !(await shouldSkipAsTargetLanguage(unit.text, config))
-    }),
+    units.map(async (unit) => !(await isParagraphFilteredOut(unit.text, config))),
   )
   return units.filter((_, index) => included[index])
 }
@@ -416,9 +393,7 @@ export async function translateNodesBilingualMode(
     try {
       // Target-language skip runs here, BEFORE the wrapper/spinner is inserted,
       // so same-language paragraphs never touch the DOM.
-      shouldFilter =
-        (await shouldFilterSmallParagraph(textContent, config)) ||
-        (await shouldSkipAsTargetLanguage(textContent, config))
+      shouldFilter = await isParagraphFilteredOut(textContent, config)
     } catch (error) {
       if (bilingualState) unregisterBilingualTranslationState(bilingualState)
       throw error

@@ -98,7 +98,7 @@ export const writeConfigAtom = atom(null, async (get, set, patch: Partial<Config
 
 type Keys = keyof Config
 
-export function getConfigFieldAtom<K extends Keys>(key: K) {
+function getConfigFieldAtom<K extends Keys>(key: K) {
   // If you don't mind "re-rendering when other fields are changed"
   // you can directly get(configAtom)[key] instead of using selectAtom.
   const sliceAtom = selectAtom(configAtom, (c) => c[key])

@@ -598,15 +598,6 @@ function SelectionPopoverTitle({ className, ...props }: React.ComponentProps<"h2
   return <DialogPrimitive.Title className={cn("text-base font-semibold", className)} {...props} />
 }
 
-function SelectionPopoverDescription({ className, ...props }: React.ComponentProps<"p">) {
-  return (
-    <DialogPrimitive.Description
-      className={cn("text-sm text-zinc-600 dark:text-zinc-400", className)}
-      {...props}
-    />
-  )
-}
-
 function SelectionPopoverPin({
   children,
   className,
@@ -670,7 +661,6 @@ const SelectionPopover = {
   Body: SelectionPopoverBody,
   Footer: SelectionPopoverFooter,
   Title: SelectionPopoverTitle,
-  Description: SelectionPopoverDescription,
   Pin: SelectionPopoverPin,
   Close: SelectionPopoverClose,
 } as const
@@ -682,7 +672,6 @@ export {
   SelectionPopoverBody,
   SelectionPopoverClose,
   SelectionPopoverContent,
-  SelectionPopoverDescription,
   SelectionPopoverFooter,
   SelectionPopoverHeader,
   SelectionPopoverPin,

@@ -161,10 +161,6 @@ function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.
   )
 }
 
-function ComboboxGroup({ className, ...props }: ComboboxPrimitive.Group.Props) {
-  return <ComboboxPrimitive.Group data-slot="combobox-group" className={cn(className)} {...props} />
-}
-
 function ComboboxLabel({ className, ...props }: ComboboxPrimitive.GroupLabel.Props) {
   return (
     <ComboboxPrimitive.GroupLabel
@@ -273,7 +269,6 @@ export {
   ComboboxCollection,
   ComboboxContent,
   ComboboxEmpty,
-  ComboboxGroup,
   ComboboxInput,
   ComboboxItem,
   ComboboxLabel,

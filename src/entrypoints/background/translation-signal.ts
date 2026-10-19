@@ -68,17 +68,12 @@ async function publishAndRefreshActiveTab(tabId: number): Promise<void> {
 }
 
 export function translationMessage() {
-  onMessage("getEnablePageTranslationByTabId", async (msg) => {
-    const { tabId } = msg.data
-    return await getTranslationState(tabId)
-  })
-
-  onMessage("getEnablePageTranslationFromContentScript", async (msg) => {
-    const tabId = msg.sender?.tab?.id
+  onMessage("getEnablePageTranslation", async (msg) => {
+    const tabId = msg.data?.tabId ?? msg.sender?.tab?.id
     if (typeof tabId === "number") {
       return await getTranslationState(tabId)
     }
-    logger.error("Invalid tabId in getEnablePageTranslationFromContentScript", msg)
+    logger.error("Invalid tabId in getEnablePageTranslation", msg)
     return false
   })
 

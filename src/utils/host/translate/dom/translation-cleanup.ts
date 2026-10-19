@@ -132,13 +132,6 @@ export function disposeVirtualParagraphGroup(group: VirtualParagraphGroup): {
   return { restored, skipped: group.splitRecords.length - restored }
 }
 
-export function removeVirtualParagraphGroupForSource(source: HTMLElement): boolean {
-  const group = getVirtualParagraphGroupForSource(source)
-  if (!group) return false
-  disposeVirtualParagraphGroup(group)
-  return true
-}
-
 export function removeOrphanVirtualParagraphWrappers(source: HTMLElement): boolean {
   const orphanWrappers = [
     ...source.querySelectorAll<HTMLElement>(`[${VIRTUAL_PARAGRAPH_ATTRIBUTE}]`),
@@ -162,16 +155,6 @@ export function dropVirtualParagraphWrapper(
   markExtensionDrivenNodeRemoval(wrapper)
   wrapper.remove()
   if (group.wrappers.size === 0) disposeVirtualParagraphGroup(group)
-}
-
-export function removeVirtualParagraphWrapper(wrapper: HTMLElement): void {
-  const group = getVirtualParagraphGroupForWrapper(wrapper)
-  if (group) {
-    dropVirtualParagraphWrapper(group, wrapper)
-  } else {
-    markExtensionDrivenNodeRemoval(wrapper)
-    wrapper.remove()
-  }
 }
 
 /**

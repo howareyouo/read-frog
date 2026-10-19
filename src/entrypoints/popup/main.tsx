@@ -4,14 +4,11 @@ import { Provider as JotaiProvider } from "jotai"
 import { useHydrateAtoms } from "jotai/utils"
 import * as React from "react"
 import { browser } from "#imports"
+import { ConfigHydrateProvider } from "@/components/providers/config-hydrate-provider"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { RecoveryBoundary } from "@/components/recovery/recovery-boundary"
 import { ToastProvider } from "@/components/ui/base-ui/toast"
 import { TooltipProvider } from "@/components/ui/base-ui/tooltip"
-import type { Config } from "@/types/config/config"
-import type { ThemeMode } from "@/types/config/theme"
-import { configAtom } from "@/utils/atoms/config"
-import { baseThemeModeAtom } from "@/utils/atoms/theme"
 import { getLocalConfig } from "@/utils/config/storage"
 import { DEFAULT_CONFIG } from "@/utils/constants/config"
 import { initI18n } from "@/utils/i18n"
@@ -41,13 +38,11 @@ function HydrateAtoms({
   children,
 }: {
   initialValues: [
-    [typeof configAtom, Config],
     [typeof isPageTranslatedAtom, boolean],
     [typeof isCurrentSiteInPatternsAtom, boolean],
     [typeof isIgnoreTabAtom, boolean],
     [typeof isCurrentSiteInWhitelistAtom, boolean],
     [typeof isCurrentSiteInBlacklistAtom, boolean],
-    [typeof baseThemeModeAtom, ThemeMode],
   ]
   children: React.ReactNode
 }) {
@@ -75,10 +70,7 @@ async function initApp() {
 
   let isPageTranslated: boolean = false
   if (tabId) {
-    isPageTranslated =
-      (await sendMessage("getEnablePageTranslationByTabId", {
-        tabId,
-      })) ?? false
+    isPageTranslated = await sendMessage("getEnablePageTranslation", { tabId })
   }
 
   const isInPatterns = tabId ? await getIsInPatterns(config.pageTranslation) : false
@@ -95,17 +87,16 @@ async function initApp() {
   renderPersistentReactRoot(
     root,
     <React.StrictMode>
-        <QueryClientProvider client={queryClient}>
-          <JotaiProvider>
+      <QueryClientProvider client={queryClient}>
+        <JotaiProvider>
+          <ConfigHydrateProvider config={config} themeMode={themeMode}>
             <HydrateAtoms
               initialValues={[
-                [configAtom, config],
                 [isPageTranslatedAtom, isPageTranslated],
                 [isCurrentSiteInPatternsAtom, isInPatterns],
                 [isIgnoreTabAtom, isIgnoreTab],
                 [isCurrentSiteInWhitelistAtom, isInWhitelist],
                 [isCurrentSiteInBlacklistAtom, isInBlacklist],
-                [baseThemeModeAtom, themeMode],
               ]}
             >
               <ThemeProvider>
@@ -120,8 +111,9 @@ async function initApp() {
                 </TooltipProvider>
               </ThemeProvider>
             </HydrateAtoms>
-          </JotaiProvider>
-        </QueryClientProvider>
+          </ConfigHydrateProvider>
+        </JotaiProvider>
+      </QueryClientProvider>
     </React.StrictMode>,
   )
 }

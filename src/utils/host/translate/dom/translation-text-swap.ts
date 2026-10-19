@@ -14,6 +14,7 @@ import {
   type TranslationOnlySwapRecord,
 } from "../core/translation-state"
 import { setTranslationDirAndLang } from "../translation-attributes"
+import { walkTextNodes } from "./text-collection"
 import {
   TRANSLATABLE_ATTRIBUTE_NAMES,
   TRANSLATABLE_INPUT_VALUE_TYPES,
@@ -47,21 +48,18 @@ export interface SourceTextSnapshotEntry {
   value: string
 }
 
-function isSwapRelevantText(node: Node): node is Text {
-  return isTextNode(node) && !!node.data.trim()
-}
-
 function isWrapperElement(node: Node): boolean {
   return isHTMLElement(node) && node.classList.contains(CONTENT_WRAPPER_CLASS)
 }
 
 function collectTextNodes(node: Node, into: Text[]): void {
-  if (isSwapRelevantText(node)) {
-    into.push(node)
-    return
-  }
-  if (!isHTMLElement(node) || isWrapperElement(node)) return
-  for (const child of node.childNodes) collectTextNodes(child, into)
+  walkTextNodes(
+    node,
+    (child) => isHTMLElement(child) && !isWrapperElement(child),
+    (textNode) => {
+      if (textNode.data.trim()) into.push(textNode)
+    },
+  )
 }
 
 /** Source text nodes of a run, in document order, excluding wrapper subtrees. */

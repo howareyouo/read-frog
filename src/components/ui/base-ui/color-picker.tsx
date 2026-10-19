@@ -511,7 +511,7 @@ const CHECKER_BG: CSSProperties = {
   backgroundSize: "8px 8px",
 }
 
-/** Hover and selected fills for the format menu, matching `fluid-card`'s stacking tints. */
+/** Hover and selected fills for the format menu, using stacking tints. */
 const HOVER_TINT = "bg-foreground/[0.045]"
 const SELECTED_TINT = "bg-foreground/[0.09]"
 
@@ -2095,19 +2095,5 @@ function ColorPickerPopover({
   )
 }
 
-export type {
-  ColorFormat,
-  ColorPickerPopoverProps,
-  ColorPickerProps,
-  ColorSwatchProps,
-  ParsedColor,
-}
-export {
-  buildParsed,
-  ColorPicker,
-  ColorPickerPopover,
-  ColorPickerPortalContainer,
-  ColorSwatch,
-  ColorTile,
-  parseColor,
-}
+export type { ColorPickerPopoverProps }
+export { ColorPickerPopover, ColorPickerPortalContainer }

@@ -1,13 +1,10 @@
-import ReactDOM from "react-dom/client"
 import themeCSS from "@/assets/styles/subtitles.css?inline"
 import type { PlatformConfig } from "@/entrypoints/subtitles.content/platforms"
-import { REACT_SHADOW_HOST_CLASS } from "@/utils/constants/dom-labels"
 import { READ_FROG_SUBTITLES_UI_HOST_ID, SUBTITLES_THEME } from "@/utils/constants/subtitles"
 import { waitForElement } from "@/utils/dom/wait-for-element"
 import { LocaleBoundary } from "@/utils/i18n/locale-boundary"
 import { ShadowWrapperContext } from "@/utils/react-shadow-host/create-shadow-host"
-import { ShadowHostBuilder } from "@/utils/react-shadow-host/shadow-host-builder"
-import { applyTheme } from "@/utils/theme"
+import { mountReactShadowUi } from "@/utils/react-shadow-host/mount-react-shadow-ui"
 import { SubtitlesContainer } from "../ui/subtitles-container"
 import { SubtitlesProviders } from "../ui/subtitles-ui-context"
 import type { SubtitlesProvidersAdapter } from "../universal-adapter"
@@ -47,7 +44,6 @@ export async function mountSubtitlesUI({
 
   const shadowHost = document.createElement("div")
   shadowHost.id = READ_FROG_SUBTITLES_UI_HOST_ID
-  shadowHost.classList.add(REACT_SHADOW_HOST_CLASS)
   shadowHost.style.cssText = `
     position: absolute;
     top: 0;
@@ -60,11 +56,9 @@ export async function mountSubtitlesUI({
     overflow: visible;
   `
 
-  const shadowRoot = shadowHost.attachShadow({ mode: "open" })
-  const hostBuilder = new ShadowHostBuilder(shadowRoot, {
-    position: "block",
+  const cleanupUi = mountReactShadowUi({
     cssContent: [themeCSS],
-    inheritStyles: false,
+    host: shadowHost,
     style: {
       position: "absolute",
       top: "0",
@@ -74,30 +68,22 @@ export async function mountSubtitlesUI({
       pointerEvents: "none",
       overflow: "visible",
     },
+    target: parentEl,
+    theme: SUBTITLES_THEME,
+    render: ({ container }) => (
+      <ShadowWrapperContext value={container}>
+        <SubtitlesProviders adapter={adapter} openBelow={menuBelow}>
+          <LocaleBoundary>
+            <SubtitlesContainer />
+          </LocaleBoundary>
+        </SubtitlesProviders>
+      </ShadowWrapperContext>
+    ),
   })
-  const reactContainer = hostBuilder.build()
-  applyTheme(reactContainer, SUBTITLES_THEME)
 
-  const reactRoot = ReactDOM.createRoot(reactContainer)
   const cleanupToast = mountSubtitlesToast()
-
   ;(shadowHost as any).__reactShadowContainerCleanup = () => {
     cleanupToast()
-    reactRoot?.unmount()
-    hostBuilder.cleanup()
+    cleanupUi()
   }
-
-  parentEl.appendChild(shadowHost)
-
-  const app = (
-    <ShadowWrapperContext value={reactContainer}>
-      <SubtitlesProviders adapter={adapter} openBelow={menuBelow}>
-        <LocaleBoundary>
-          <SubtitlesContainer />
-        </LocaleBoundary>
-      </SubtitlesProviders>
-    </ShadowWrapperContext>
-  )
-
-  reactRoot.render(app)
 }

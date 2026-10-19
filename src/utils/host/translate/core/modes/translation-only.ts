@@ -4,7 +4,6 @@ import type { TransNode } from "@/types/dom"
 import { logger } from "@/utils/logger"
 import {
   CONTENT_WRAPPER_CLASS,
-  NOTRANSLATE_CLASS,
   PARAGRAPH_ATTRIBUTE,
   TRANSLATION_MODE_ATTRIBUTE,
   TRANSLATION_ONLY_ATTRIBUTE,
@@ -43,12 +42,9 @@ import {
   verifySourceSnapshot,
 } from "../../dom/translation-text-swap"
 import { materializeVirtualParagraphUnitRuns } from "../../dom/virtual-paragraph-insertion"
-import { shouldFilterSmallParagraph } from "../../filter-small-paragraph"
 import { isHtmlAttributeMarkerIntegrityError } from "../../html-attribute-markers"
-import { shouldSkipAsTargetLanguage } from "../../target-language-skip"
 import { translateTextForPage } from "../../translate-variants"
-import { setTranslationDirAndLang } from "../../translation-attributes"
-import { createSpinnerInside, getTranslatedTextAndRemoveSpinner } from "../../ui/spinner"
+import { getTranslatedTextAndRemoveSpinner } from "../../ui/spinner"
 import { isNumericContent } from "../../ui/translation-utils"
 import {
   getTranslationOnlyAnchorState,
@@ -57,7 +53,9 @@ import {
 } from "../translation-state"
 import {
   claimNodesForTranslation,
+  createModeWrapper,
   getDisplayTranslation,
+  isParagraphFilteredOut,
   releaseNodesFromTranslation,
 } from "./shared"
 
@@ -433,11 +431,9 @@ async function translateTranslationOnlyRun(
     const innerTextContent = transNodes.map((node) => extractTextContent(node, config)).join("")
     if (!innerTextContent.trim() || isNumericContent(innerTextContent)) return
 
-    if (await shouldFilterSmallParagraph(innerTextContent, config)) return
-
     // Check the plain text, not the HTML string sent to the provider — franc
     // on markup is noise. Runs before the wrapper is inserted into the DOM.
-    if (await shouldSkipAsTargetLanguage(innerTextContent, config)) return
+    if (await isParagraphFilteredOut(innerTextContent, config)) return
 
     const ownerDoc = getOwnerDocument(targetNode)
     const protectedHtml = protectTranslationHtmlAttributes(transNodes, ownerDoc)
@@ -449,16 +445,13 @@ async function translateTranslationOnlyRun(
     // flight (never swap over content the host has since rewritten).
     const sourceSnapshot = snapshotSourceTextNodes(transNodes)
 
-    const translatedWrapperNode = ownerDoc.createElement("span")
-    translatedWrapperNode.className = `${NOTRANSLATE_CLASS} ${CONTENT_WRAPPER_CLASS}`
-    translatedWrapperNode.setAttribute(
-      TRANSLATION_MODE_ATTRIBUTE,
-      "translationOnly" satisfies TranslationMode,
+    const { spinner, wrapper: translatedWrapperNode } = createModeWrapper(
+      ownerDoc,
+      walkId,
+      "translationOnly",
+      config,
+      { style: { display: "contents" } },
     )
-    translatedWrapperNode.setAttribute(WALKED_ATTRIBUTE, walkId)
-    translatedWrapperNode.style.display = "contents"
-    setTranslationDirAndLang(translatedWrapperNode, config)
-    const spinner = createSpinnerInside(translatedWrapperNode)
 
     // Batch DOM insertion to reduce layout thrashing
     const insertOperation = () => {

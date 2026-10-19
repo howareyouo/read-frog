@@ -92,16 +92,6 @@ export function getFeatureProviderSetCacheIdentity(
   return identity
 }
 
-/** The primary (first) provider for a feature — used for summaries and non-request contexts. */
-export function getPrimaryFeatureProviderRef(
-  featureKey: FeatureKey,
-  config: Config,
-): ProviderRefForCapability<FeatureKey> | null {
-  const id = getFeatureProviderIds(config, featureKey)[0] ?? ""
-  if (!id) return null
-  return resolveProviderRefForCapability(featureKey, config.providersConfig, id)
-}
-
 /**
  * Resolve the next provider in rotation for a feature's translation request.
  * Returns null when no selected provider can serve the feature (disabled or

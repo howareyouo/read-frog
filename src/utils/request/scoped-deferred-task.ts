@@ -8,7 +8,7 @@
  * scope per subscribing tab/session, #1881).
  */
 
-export interface Deferred<T> {
+interface Deferred<T> {
   promise: Promise<T>
   resolve: (value: T) => void
   reject: (error: Error) => void
@@ -25,7 +25,7 @@ export function createDeferred<T>(): Deferred<T> {
   return { promise, resolve, reject }
 }
 
-export interface InFlightEntry<TTask, TPromise = unknown> {
+interface InFlightEntry<TTask, TPromise = unknown> {
   task: TTask
   promise: Promise<TPromise>
 }

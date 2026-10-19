@@ -11,7 +11,13 @@ import {
   useMotionValue,
   useTransform,
 } from "motion/react"
-import type { CSSProperties, HTMLAttributes, PointerEvent as ReactPointerEvent, Ref } from "react"
+import type {
+  CSSProperties,
+  HTMLAttributes,
+  ReactNode,
+  PointerEvent as ReactPointerEvent,
+  Ref,
+} from "react"
 import {
   useCallback,
   useContext,
@@ -122,6 +128,167 @@ function pixelToValue(
 
 function toThumbValues(value: SliderValue): number[] {
   return Array.isArray(value) ? value : [value]
+}
+
+/* ---- Shared slider engine ----
+   The two variants below render completely different visuals, but their
+   interaction plumbing overlaps: the pointer-down guard, the 100ms
+   hover-tooltip delay, the hover-bar geometry, the extended hit area, and the
+   invisible Base UI primitive that provides ARIA + keyboard nav. Everything
+   that diverges (drag coordinate space, springs, fill/thumb rendering,
+   resize handling) stays per-variant. */
+
+interface HoverPreviewState {
+  left: number
+  width: number
+  snappedValue: number
+  cursorX: number
+}
+
+/* Guard shared by every variant's pointer-down handlers: ignore the press when
+   disabled or when a non-primary mouse button went down, and preventDefault
+   otherwise. */
+function shouldIgnorePointerPress(
+  e: ReactPointerEvent<HTMLDivElement>,
+  disabled: boolean,
+): boolean {
+  if (disabled) return true
+  if (e.pointerType === "mouse" && e.button !== 0) return true
+  e.preventDefault()
+  return false
+}
+
+/* Hover bar stretched between the handle and the snapped cursor position,
+   extended to the track edges at the extremes so there's no gap. */
+function hoverPreviewAt(
+  snappedValue: number,
+  snappedX: number,
+  handleX: number,
+  extent: number,
+  min: number,
+  max: number,
+): HoverPreviewState {
+  const edgeX = snappedValue === min ? 0 : snappedValue === max ? extent : snappedX
+  return {
+    left: Math.min(handleX, edgeX),
+    width: Math.abs(edgeX - handleX),
+    snappedValue,
+    cursorX: snappedX,
+  }
+}
+
+/* Show hover tooltip after 100ms delay */
+function useHoverTooltipDelay(isHovered: boolean): boolean {
+  const [showHoverTooltip, setShowHoverTooltip] = useState(false)
+  const hoverDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (isHovered) {
+      hoverDelayRef.current = setTimeout(() => setShowHoverTooltip(true), 100)
+    } else {
+      if (hoverDelayRef.current) clearTimeout(hoverDelayRef.current)
+      setShowHoverTooltip(false)
+    }
+    return () => {
+      if (hoverDelayRef.current) clearTimeout(hoverDelayRef.current)
+    }
+  }, [isHovered])
+
+  return showHoverTooltip
+}
+
+/* Hover value tooltip. Rendered as a direct child of AnimatePresence at each
+   call site (key lives there) so exit animations run; the variants position it
+   at different heights above the track. */
+function HoverTooltip({
+  cursorX,
+  top,
+  children,
+}: {
+  cursorX: number
+  top: number
+  children: ReactNode
+}) {
+  return (
+    <m.div
+      className="pointer-events-none absolute z-20 -translate-x-1/2"
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 4, transition: spring.fast.exit }}
+      transition={spring.fast}
+      style={{ left: cursorX, top }}
+    >
+      <span className="rounded-md bg-foreground px-2 py-1 text-[12px] whitespace-nowrap text-background tabular-nums">
+        {children}
+      </span>
+    </m.div>
+  )
+}
+
+/* Extended hit area — 8px beyond each edge */
+function ExtendedHitArea(props: {
+  onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerUp: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerCancel: (e: ReactPointerEvent<HTMLDivElement>) => void
+}) {
+  return (
+    <div
+      className="absolute cursor-ew-resize"
+      style={{ left: -8, right: -8, top: 0, bottom: 0 }}
+      onPointerDown={props.onPointerDown}
+      onPointerMove={props.onPointerMove}
+      onPointerUp={props.onPointerUp}
+      onPointerCancel={props.onPointerCancel}
+    />
+  )
+}
+
+/* Invisible Base UI Slider — provides ARIA + keyboard nav. Thumbs are passed
+   as children so each variant attaches its own labels and focus handling. */
+function InvisibleSliderShell({
+  value,
+  onValueChange,
+  onValueCommitted,
+  min,
+  max,
+  step,
+  disabled,
+  className,
+  style,
+  children,
+}: {
+  value: number[]
+  onValueChange: (newValues: number[]) => void
+  onValueCommitted: (newValues: number[]) => void
+  min: number
+  max: number
+  step: number
+  disabled: boolean
+  className: string
+  style?: CSSProperties
+  children: ReactNode
+}) {
+  return (
+    <SliderPrimitive.Root
+      value={value}
+      onValueChange={onValueChange}
+      onValueCommitted={onValueCommitted}
+      min={min}
+      max={max}
+      step={step}
+      disabled={disabled}
+      className={className}
+      style={style}
+    >
+      <SliderPrimitive.Control className="h-full w-full">
+        <SliderPrimitive.Track className="h-full w-full">
+          <SliderPrimitive.Indicator />
+        </SliderPrimitive.Track>
+        {children}
+      </SliderPrimitive.Control>
+    </SliderPrimitive.Root>
+  )
 }
 
 interface ValueDisplayProps {
@@ -326,28 +493,9 @@ function Slider({
   const [isHovered, setIsHovered] = useState(false)
   const [isPressed, setIsPressed] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [hoverPreview, setHoverPreview] = useState<{
-    left: number
-    width: number
-    snappedValue: number
-    cursorX: number
-  } | null>(null)
+  const [hoverPreview, setHoverPreview] = useState<HoverPreviewState | null>(null)
   const [focusedThumb, setFocusedThumb] = useState<number | null>(null)
-  const [showHoverTooltip, setShowHoverTooltip] = useState(false)
-  const hoverDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Show hover tooltip after 100ms delay
-  useEffect(() => {
-    if (isHovered) {
-      hoverDelayRef.current = setTimeout(() => setShowHoverTooltip(true), 100)
-    } else {
-      if (hoverDelayRef.current) clearTimeout(hoverDelayRef.current)
-      setShowHoverTooltip(false)
-    }
-    return () => {
-      if (hoverDelayRef.current) clearTimeout(hoverDelayRef.current)
-    }
-  }, [isHovered])
+  const showHoverTooltip = useHoverTooltipDelay(isHovered)
 
   const motionX0 = useMotionValue(0)
   const motionX1 = useMotionValue(0)
@@ -396,11 +544,7 @@ function Slider({
       const nearestIdx = isRange ? (Math.abs(snappedX - c0) <= Math.abs(snappedX - c1) ? 0 : 1) : 0
       const nearest = nearestIdx === 0 ? c0 : c1
 
-      // Extend hover bar to track edges at extremes so there's no gap
-      const edgeX = snappedVal === min ? 0 : snappedVal === max ? trackWidth : snappedX
-      const left = Math.min(nearest, edgeX)
-      const width = Math.abs(edgeX - nearest)
-      setHoverPreview({ left, width, snappedValue: snappedVal, cursorX: snappedX })
+      setHoverPreview(hoverPreviewAt(snappedVal, snappedX, nearest, trackWidth, min, max))
     },
     [min, max, step, stepValues, isRange, motionX0, motionX1],
   )
@@ -490,9 +634,7 @@ function Slider({
 
   const handlePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (disabled) return
-      if (e.pointerType === "mouse" && e.button !== 0) return
-      e.preventDefault()
+      if (shouldIgnorePointerPress(e, disabled)) return
       e.stopPropagation() // Prevent the primitive from also handling the drag
 
       const trackEl = trackRef.current
@@ -770,7 +912,7 @@ function Slider({
           )}
 
           {/* Base UI Slider — invisible, provides ARIA + keyboard nav */}
-          <SliderPrimitive.Root
+          <InvisibleSliderShell
             value={stepValues ? values.map((v) => nearestStepIndex(v, stepValues)) : values}
             onValueChange={handlePrimitiveChange}
             onValueCommitted={handlePrimitiveCommit}
@@ -781,37 +923,31 @@ function Slider({
             className="pointer-events-none absolute inset-0 opacity-0"
             style={{ height: THUMB_SIZE }}
           >
-            <SliderPrimitive.Control className="h-full w-full">
-              <SliderPrimitive.Track className="h-full w-full">
-                <SliderPrimitive.Indicator />
-              </SliderPrimitive.Track>
+            <SliderPrimitive.Thumb
+              index={0}
+              aria-label={thumbAriaLabel(0)}
+              getAriaValueText={stepValues ? () => formatValue(at(values, 0)) : undefined}
+              className="block outline-none"
+              style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+              onFocus={(e) => {
+                if ((e.currentTarget as HTMLElement).matches(":focus-visible")) setFocusedThumb(0)
+              }}
+              onBlur={() => setFocusedThumb((prev) => (prev === 0 ? null : prev))}
+            />
+            {isRange && (
               <SliderPrimitive.Thumb
-                index={0}
-                aria-label={thumbAriaLabel(0)}
-                getAriaValueText={stepValues ? () => formatValue(at(values, 0)) : undefined}
+                index={1}
+                aria-label={thumbAriaLabel(1)}
+                getAriaValueText={stepValues ? () => formatValue(at(values, 1)) : undefined}
                 className="block outline-none"
                 style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
                 onFocus={(e) => {
-                  if ((e.currentTarget as HTMLElement).matches(":focus-visible")) setFocusedThumb(0)
+                  if ((e.currentTarget as HTMLElement).matches(":focus-visible")) setFocusedThumb(1)
                 }}
-                onBlur={() => setFocusedThumb((prev) => (prev === 0 ? null : prev))}
+                onBlur={() => setFocusedThumb((prev) => (prev === 1 ? null : prev))}
               />
-              {isRange && (
-                <SliderPrimitive.Thumb
-                  index={1}
-                  aria-label={thumbAriaLabel(1)}
-                  getAriaValueText={stepValues ? () => formatValue(at(values, 1)) : undefined}
-                  className="block outline-none"
-                  style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
-                  onFocus={(e) => {
-                    if ((e.currentTarget as HTMLElement).matches(":focus-visible"))
-                      setFocusedThumb(1)
-                  }}
-                  onBlur={() => setFocusedThumb((prev) => (prev === 1 ? null : prev))}
-                />
-              )}
-            </SliderPrimitive.Control>
-          </SliderPrimitive.Root>
+            )}
+          </InvisibleSliderShell>
 
           {/* Visual track with pointer handlers */}
           <div
@@ -823,10 +959,7 @@ function Slider({
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
           >
-            {/* Extended hit area — 8px beyond each edge */}
-            <div
-              className="absolute cursor-ew-resize"
-              style={{ left: -8, right: -8, top: 0, bottom: 0 }}
+            <ExtendedHitArea
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
@@ -835,19 +968,9 @@ function Slider({
 
             <AnimatePresence>
               {hoverPreview && showHoverTooltip && !isPressed && valuePosition !== "tooltip" && (
-                <m.div
-                  key="hover-tooltip"
-                  className="pointer-events-none absolute z-20 -translate-x-1/2"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4, transition: spring.fast.exit }}
-                  transition={spring.fast}
-                  style={{ left: hoverPreview.cursorX, top: -20 }}
-                >
-                  <span className="rounded-md bg-foreground px-2 py-1 text-[12px] whitespace-nowrap text-background tabular-nums">
-                    {formatValue(hoverPreview.snappedValue)}
-                  </span>
-                </m.div>
+                <HoverTooltip key="hover-tooltip" cursorX={hoverPreview.cursorX} top={-20}>
+                  {formatValue(hoverPreview.snappedValue)}
+                </HoverTooltip>
               )}
             </AnimatePresence>
 
@@ -1004,27 +1127,8 @@ function SliderComfortable({
   const [isHovered, setIsHovered] = useState(false)
   const [isPressed, setIsPressed] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
-  const [hoverPreview, setHoverPreview] = useState<{
-    left: number
-    width: number
-    snappedValue: number
-    cursorX: number
-  } | null>(null)
-  const [showHoverTooltip, setShowHoverTooltip] = useState(false)
-  const hoverDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Show hover tooltip after 100ms delay
-  useEffect(() => {
-    if (isHovered) {
-      hoverDelayRef.current = setTimeout(() => setShowHoverTooltip(true), 100)
-    } else {
-      if (hoverDelayRef.current) clearTimeout(hoverDelayRef.current)
-      setShowHoverTooltip(false)
-    }
-    return () => {
-      if (hoverDelayRef.current) clearTimeout(hoverDelayRef.current)
-    }
-  }, [isHovered])
+  const [hoverPreview, setHoverPreview] = useState<HoverPreviewState | null>(null)
+  const showHoverTooltip = useHoverTooltipDelay(isHovered)
 
   const mergedRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -1113,11 +1217,7 @@ function SliderComfortable({
           ? currentPercent * w + (20 - 20 * currentPercent - zeroOffset.get() * 2.5)
           : currentPercent * w
 
-      // Extend hover bar to container edges at extremes so there's no gap
-      const edgeX = snappedVal === min ? 0 : snappedVal === max ? w : snappedX
-      const left = Math.min(handleX, edgeX)
-      const width = Math.abs(edgeX - handleX)
-      setHoverPreview({ left, width, snappedValue: snappedVal, cursorX: snappedX })
+      setHoverPreview(hoverPreviewAt(snappedVal, snappedX, handleX, w, min, max))
     },
     [variant, pipSteps, pipCount, min, max, step, fillPercent, zeroOffset],
   )
@@ -1153,9 +1253,7 @@ function SliderComfortable({
 
   const handlePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (disabled) return
-      if (e.pointerType === "mouse" && e.button !== 0) return
-      e.preventDefault()
+      if (shouldIgnorePointerPress(e, disabled)) return
       dragging.current = true
       setIsPressed(true)
       const newVal = getValueFromX(e.clientX)
@@ -1193,9 +1291,7 @@ function SliderComfortable({
   // Resize handle drag handlers (direct cursor position)
   const handleResizePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (disabled) return
-      if (e.pointerType === "mouse" && e.button !== 0) return
-      e.preventDefault()
+      if (shouldIgnorePointerPress(e, disabled)) return
       e.stopPropagation()
       handleDragging.current = true
       setIsPressed(true)
@@ -1249,10 +1345,7 @@ function SliderComfortable({
           computeHoverPreview(e.clientX)
         }}
       >
-        {/* Extended hit area — 8px beyond each edge */}
-        <div
-          className="absolute cursor-ew-resize"
-          style={{ left: -8, right: -8, top: 0, bottom: 0 }}
+        <ExtendedHitArea
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -1262,19 +1355,9 @@ function SliderComfortable({
         {/* Hover value tooltip — outside overflow-hidden container */}
         <AnimatePresence>
           {hoverPreview && showHoverTooltip && !isPressed && (
-            <m.div
-              key="hover-tooltip"
-              className="pointer-events-none absolute z-20 -translate-x-1/2"
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4, transition: spring.fast.exit }}
-              transition={spring.fast}
-              style={{ left: hoverPreview.cursorX, top: -30 }}
-            >
-              <span className="rounded-md bg-foreground px-2 py-1 text-[12px] whitespace-nowrap text-background tabular-nums">
-                {formatValue(hoverPreview.snappedValue)}
-              </span>
-            </m.div>
+            <HoverTooltip key="hover-tooltip" cursorX={hoverPreview.cursorX} top={-30}>
+              {formatValue(hoverPreview.snappedValue)}
+            </HoverTooltip>
           )}
         </AnimatePresence>
 
@@ -1300,7 +1383,7 @@ function SliderComfortable({
           {...props}
         >
           {/* Invisible Base UI Slider for keyboard nav + a11y */}
-          <SliderPrimitive.Root
+          <InvisibleSliderShell
             value={[value]}
             onValueChange={(v) => onChange(at(v, 0))}
             onValueCommitted={(v) => {
@@ -1314,21 +1397,16 @@ function SliderComfortable({
             disabled={disabled}
             className="pointer-events-none absolute inset-0 opacity-0 [&_*]:pointer-events-none"
           >
-            <SliderPrimitive.Control className="h-full w-full">
-              <SliderPrimitive.Track className="h-full w-full">
-                <SliderPrimitive.Indicator />
-              </SliderPrimitive.Track>
-              <SliderPrimitive.Thumb
-                index={0}
-                aria-label={ariaLabel ?? label}
-                className="block outline-none"
-                onFocus={(e) => {
-                  if ((e.currentTarget as HTMLElement).matches(":focus-visible")) setIsFocused(true)
-                }}
-                onBlur={() => setIsFocused(false)}
-              />
-            </SliderPrimitive.Control>
-          </SliderPrimitive.Root>
+            <SliderPrimitive.Thumb
+              index={0}
+              aria-label={ariaLabel ?? label}
+              className="block outline-none"
+              onFocus={(e) => {
+                if ((e.currentTarget as HTMLElement).matches(":focus-visible")) setIsFocused(true)
+              }}
+              onBlur={() => setIsFocused(false)}
+            />
+          </InvisibleSliderShell>
 
           {/* Hover preview */}
           <m.div

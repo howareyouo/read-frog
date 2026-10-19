@@ -35,11 +35,11 @@ import {
   isGiantParagraphUnit,
 } from "@/utils/host/translate/dom/paragraph-segmentation"
 import {
-  removeAllTranslatedWrapperNodes,
   translateNodes,
   translateNodesBilingualMode,
-  translateWalkedElement,
-} from "@/utils/host/translate/node-manipulation"
+} from "@/utils/host/translate/core/translation-modes"
+import { translateWalkedElement } from "@/utils/host/translate/core/translation-walker"
+import { removeAllTranslatedWrapperNodes } from "@/utils/host/translate/dom/translation-cleanup"
 import { validateTranslationConfigAndToast } from "@/utils/host/translate/translate-text"
 import {
   beginPageTranslationSession,
@@ -616,23 +616,41 @@ export class PageTranslationManager implements IPageTranslationManager {
     // walk-id check moves into JS so we drop the expensive CSS.escape from the
     // hot path. Shadow roots are not pierced by querySelectorAll, so we recurse
     // into them explicitly.
-    const walk = (root: HTMLElement | Document | ShadowRoot) => {
+    this.walkIsolatedDescendants(container, true, (root) => {
       const elements = root.querySelectorAll<HTMLElement>("[data-read-frog-paragraph]")
       for (const el of elements) {
         if (el.getAttribute("data-read-frog-walked") === walkId) {
           result.push(el)
         }
       }
-      for (const child of root.children) {
-        if (child instanceof HTMLElement && child.shadowRoot) {
-          walk(child.shadowRoot)
-        }
-      }
-    }
-
-    walk(container)
+    })
 
     return result
+  }
+
+  /**
+   * Depth-first shadow-piercing walk shared by paragraph collection and
+   * mutation observation: visit every root, then continue per element child —
+   * into its shadow root when `crossShadow` is set (collection: the per-root
+   * querySelectorAll already covers the light subtree), otherwise into the
+   * child itself (observation: shadow content is only ever observed at its
+   * boundary children, never descended into).
+   */
+  private walkIsolatedDescendants(
+    root: HTMLElement | Document | ShadowRoot,
+    crossShadow: boolean,
+    visit: (root: HTMLElement | Document | ShadowRoot) => void,
+  ): void {
+    visit(root)
+    for (const child of root.children) {
+      if (crossShadow) {
+        if (child instanceof HTMLElement && child.shadowRoot) {
+          this.walkIsolatedDescendants(child.shadowRoot, crossShadow, visit)
+        }
+      } else if (isHTMLElement(child)) {
+        this.walkIsolatedDescendants(child, crossShadow, visit)
+      }
+    }
   }
 
   /**
@@ -983,20 +1001,13 @@ export class PageTranslationManager implements IPageTranslationManager {
    * considered as part of the document.
    */
   private observeIsolatedDescendantsMutations(element: HTMLElement): void {
-    // Check if this element has a shadow root
-    if (element.shadowRoot) {
-      for (const child of element.shadowRoot.children) {
+    this.walkIsolatedDescendants(element, false, (node) => {
+      if (!(node instanceof HTMLElement) || !node.shadowRoot) return
+      for (const child of node.shadowRoot.children) {
         if (isHTMLElement(child)) {
           this.observeMutations(child)
         }
       }
-    }
-
-    // Recursively check children
-    for (const child of element.children) {
-      if (isHTMLElement(child)) {
-        this.observeIsolatedDescendantsMutations(child)
-      }
-    }
+    })
   }
 }

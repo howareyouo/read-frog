@@ -31,6 +31,20 @@ function isDocumentSurfaceTarget(target: EventTarget | null): boolean {
   )
 }
 
+function shouldTriggerOnHold(config: Config | null): config is Config {
+  if (config === null) return false
+  return (
+    config.pageTranslation.node.enabled && config.pageTranslation.node.hotkey === "clickAndHold"
+  )
+}
+
+function shouldTriggerOnHotkey(config: Config | null): config is Config {
+  if (config === null) return false
+  return (
+    config.pageTranslation.node.enabled && config.pageTranslation.node.hotkey !== "clickAndHold"
+  )
+}
+
 /**
  * Registers the shared node-translation interaction state machine.
  *
@@ -193,12 +207,7 @@ export function registerNodeTranslationTriggerListeners({
         const point = { x: event.clientX, y: event.clientY }
 
         const config = await getCurrentConfig()
-        if (
-          !config ||
-          !config.pageTranslation.node.enabled ||
-          config.pageTranslation.node.hotkey !== "clickAndHold"
-        )
-          return
+        if (!shouldTriggerOnHold(config)) return
 
         isMousePressed = true
         clickAndHoldTriggered = false
@@ -211,12 +220,7 @@ export function registerNodeTranslationTriggerListeners({
             if (!isMousePressed || !mousePressPosition || clickAndHoldTriggered) return
 
             const currentConfig = await getCurrentConfig()
-            if (
-              !currentConfig ||
-              !currentConfig.pageTranslation.node.enabled ||
-              currentConfig.pageTranslation.node.hotkey !== "clickAndHold"
-            )
-              return
+            if (!shouldTriggerOnHold(currentConfig)) return
 
             triggerNodeTranslation(mousePressPosition, currentConfig)
             clickAndHoldTriggered = true
@@ -248,11 +252,7 @@ export function registerNodeTranslationTriggerListeners({
         if (isEditableTarget(event.target)) return
 
         const config = await getCurrentConfig()
-        if (
-          !config ||
-          !config.pageTranslation.node.enabled ||
-          config.pageTranslation.node.hotkey === "clickAndHold"
-        ) {
+        if (!shouldTriggerOnHotkey(config)) {
           resetHotkeySession()
           return
         }
@@ -272,11 +272,7 @@ export function registerNodeTranslationTriggerListeners({
                 }
 
                 const currentConfig = await getCurrentConfig()
-                if (
-                  !currentConfig ||
-                  !currentConfig.pageTranslation.node.enabled ||
-                  currentConfig.pageTranslation.node.hotkey === "clickAndHold"
-                ) {
+                if (!shouldTriggerOnHotkey(currentConfig)) {
                   timerId = null
                   return
                 }
@@ -319,11 +315,7 @@ export function registerNodeTranslationTriggerListeners({
         if (isEditableTarget(event.target)) return
 
         const config = await getCurrentConfig()
-        if (
-          !config ||
-          !config.pageTranslation.node.enabled ||
-          config.pageTranslation.node.hotkey === "clickAndHold"
-        ) {
+        if (!shouldTriggerOnHotkey(config)) {
           if (event.key === activeHotkeyEventKey) resetHotkeySession()
           return
         }
@@ -338,12 +330,7 @@ export function registerNodeTranslationTriggerListeners({
             }
             if (!actionTriggered) {
               const currentConfig = await getCurrentConfig()
-              if (
-                !currentConfig ||
-                !currentConfig.pageTranslation.node.enabled ||
-                currentConfig.pageTranslation.node.hotkey === "clickAndHold"
-              )
-                return
+              if (!shouldTriggerOnHotkey(currentConfig)) return
 
               triggerNodeTranslation(resolveTriggerPoint(), currentConfig)
             }

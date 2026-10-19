@@ -34,7 +34,7 @@ import { omit, pick } from "@/types/utils"
 import { i18n } from "@/utils/i18n"
 import { getLobeIconsCDNUrlFn } from "../logo"
 
-export const DEFAULT_LLM_PROVIDER_MODELS: LLMProviderModels = {
+const DEFAULT_LLM_PROVIDER_MODELS: LLMProviderModels = {
   openrouter: {
     model: "x-ai/grok-4-fast:free",
   },

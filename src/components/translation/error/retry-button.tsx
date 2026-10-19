@@ -7,7 +7,7 @@ import { getRandomUUID } from "@/utils/crypto-polyfill"
 import {
   translateNodesBilingualMode,
   translateNodeTranslationOnlyMode,
-} from "@/utils/host/translate/node-manipulation"
+} from "@/utils/host/translate/core/translation-modes"
 import { ShadowWrapperContext } from "@/utils/react-shadow-host/create-shadow-host"
 
 export function RetryButton({ nodes }: { nodes: ChildNode[] }) {

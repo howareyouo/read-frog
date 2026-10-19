@@ -9,15 +9,6 @@ import { translateWalkedElement } from "./core/translation-walker"
 import { validateTranslationConfigAndToast } from "./translate-text"
 import { beginNodeSiteRuleCSSOperation } from "./ui/node-site-rule-css"
 
-// Re-export public APIs
-export {
-  translateNodes,
-  translateNodesBilingualMode,
-  translateNodeTranslationOnlyMode,
-} from "./core/translation-modes"
-export { translateWalkedElement } from "./core/translation-walker"
-export { removeAllTranslatedWrapperNodes } from "./dom/translation-cleanup"
-
 // High-level orchestration function
 export async function removeOrShowNodeTranslation(point: Point, config: Config): Promise<boolean> {
   const node = findNearestAncestorBlockNodeAt(point, config)

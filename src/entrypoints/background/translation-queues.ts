@@ -109,7 +109,7 @@ async function executeQueuedTranslation<TContext>(
  *   (0..k-1) rides along as the error's `partialResults` salvage: the queue
  *   resolves those tasks directly and only re-requests the missing tail.
  */
-export function parseBatchResult(result: string, expectedCount: number): string[] {
+function parseBatchResult(result: string, expectedCount: number): string[] {
   const trimmed = normalizeSegmentAnchorEscapes(result).trim()
   const anchorMatches = [...trimmed.matchAll(BATCH_SEGMENT_LINE_PATTERN)]
   if (anchorMatches.length === 0) {
@@ -152,7 +152,7 @@ export function parseBatchResult(result: string, expectedCount: number): string[
   )
 }
 
-export function shouldUseBatchQueue(provider: QueuedTranslationProvider): boolean {
+function shouldUseBatchQueue(provider: QueuedTranslationProvider): boolean {
   return isLLMProviderConfig(getLocalProviderConfig(provider))
 }
 
@@ -177,7 +177,7 @@ async function getValidatedCachedTranslation(
   }
 }
 
-export async function executeBatchTranslation<TContext>(
+async function executeBatchTranslation<TContext>(
   dataList: TranslateBatchData<TContext>[],
   provider: QueuedTranslationProvider,
   promptResolver: PromptResolver<TContext>,
@@ -397,7 +397,7 @@ export function buildTranslationBatchKey<TContext>(
  * script's session id. Building it background-side from `sender.tab.id` makes
  * cross-tab cancellation impossible by construction.
  */
-export function buildTranslationScopeKey(
+function buildTranslationScopeKey(
   sender: { tab?: { id?: number } } | undefined,
   sessionId: string | undefined,
 ): string | undefined {

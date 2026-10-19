@@ -1,15 +1,13 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { kebabCase } from "case-anything"
 import { Provider as JotaiProvider } from "jotai"
-import { useHydrateAtoms } from "jotai/utils"
 import ReactDOM from "react-dom/client"
 import type { ContentScriptContext } from "#imports"
 import { createShadowRootUi } from "#imports"
+import { ConfigHydrateProvider } from "@/components/providers/config-hydrate-provider"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { TooltipProvider } from "@/components/ui/base-ui/tooltip"
 import type { Config } from "@/types/config/config"
-import type { ThemeMode } from "@/types/config/theme"
-import { baseThemeModeAtom } from "@/utils/atoms/theme"
 import { APP_NAME } from "@/utils/constants/app"
 import { initI18n } from "@/utils/i18n"
 import { LocaleBoundary } from "@/utils/i18n/locale-boundary"
@@ -21,17 +19,6 @@ import { queryClient } from "@/utils/tanstack-query"
 import { getLocalThemeMode } from "@/utils/theme"
 import App from "./app"
 import { setupExternalSelectionSource } from "./external-selection-source"
-
-function HydrateAtoms({
-  initialValues,
-  children,
-}: {
-  initialValues: [[typeof baseThemeModeAtom, ThemeMode]]
-  children: React.ReactNode
-}) {
-  useHydrateAtoms(initialValues)
-  return children
-}
 
 // eslint-disable-next-line import/no-mutable-exports
 export let shadowWrapper: HTMLElement | null = null
@@ -59,19 +46,19 @@ async function mountSelectionUI(ctx: ContentScriptContext) {
 
       const root = ReactDOM.createRoot(wrapper)
       root.render(
-          <QueryClientProvider client={queryClient}>
-            <JotaiProvider>
-              <HydrateAtoms initialValues={[[baseThemeModeAtom, themeMode]]}>
-                <ThemeProvider container={wrapper}>
-                  <TooltipProvider>
-                    <LocaleBoundary>
-                      <App uiContainer={container} portalContainer={shadow} />
-                    </LocaleBoundary>
-                  </TooltipProvider>
-                </ThemeProvider>
-              </HydrateAtoms>
-            </JotaiProvider>
-          </QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <JotaiProvider>
+            <ConfigHydrateProvider themeMode={themeMode}>
+              <ThemeProvider container={wrapper}>
+                <TooltipProvider>
+                  <LocaleBoundary>
+                    <App uiContainer={container} portalContainer={shadow} />
+                  </LocaleBoundary>
+                </TooltipProvider>
+              </ThemeProvider>
+            </ConfigHydrateProvider>
+          </JotaiProvider>
+        </QueryClientProvider>,
       )
       return root
     },

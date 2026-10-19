@@ -562,65 +562,56 @@ export async function generateTextForProviderRef(
   return text.trim()
 }
 
-export async function runStreamTextInBackground(
-  serializablePayload: BackgroundStreamTextSerializablePayload,
-  options: StreamRuntimeOptions<BackgroundTextStreamSnapshot> = {},
-): Promise<BackgroundTextStreamSnapshot> {
+async function runBackgroundStream<TSnapshot>(
+  serializablePayload: BackgroundStreamTextSerializablePayload & {
+    outputSchema?: BackgroundStructuredObjectOutputField[]
+  },
+  options: StreamRuntimeOptions<TSnapshot> = {},
+  mode: {
+    objectSchema?: z.ZodType<Record<string, unknown>>
+    consumePartStream: (
+      partStream: AsyncIterable<unknown>,
+      options: { signal?: AbortSignal; onChunk?: StreamRuntimeOptions<TSnapshot>["onChunk"] },
+    ) => Promise<TSnapshot>
+  },
+): Promise<TSnapshot> {
   const { signal, onChunk } = options
 
   if (signal?.aborted) {
     throw new DOMException("stream aborted", "AbortError")
   }
 
-  const partStream = await createLocalPartStream(serializablePayload, options)
+  const partStream = await createLocalPartStream(serializablePayload, options, mode.objectSchema)
 
-  return consumeTextPartStream(partStream, {
-    onChunk,
-    signal,
-  })
+  return mode.consumePartStream(partStream, { onChunk, signal })
 }
 
-export async function runStructuredObjectStreamInBackground(
-  serializablePayload: BackgroundStreamStructuredObjectSerializablePayload,
-  options: StreamRuntimeOptions<BackgroundStructuredObjectStreamSnapshot> = {},
-): Promise<BackgroundStructuredObjectStreamSnapshot> {
-  const { signal, onChunk } = options
-
-  if (signal?.aborted) {
-    throw new DOMException("stream aborted", "AbortError")
-  }
-
-  const objectSchema = createStructuredObjectSchema(serializablePayload.outputSchema)
-  const partStream = await createLocalPartStream(serializablePayload, options, objectSchema)
-
-  return consumeStructuredObjectPartStream(partStream, {
-    objectSchema,
-    onChunk,
-    signal,
-  })
-}
-
-const parseStreamTextStartMessage =
-  createStartMessageParser<BackgroundStreamTextSerializablePayload>(streamTextPayloadSchema)
-const parseStructuredObjectStartMessage =
-  createStartMessageParser<BackgroundStreamStructuredObjectSerializablePayload>(
-    structuredObjectPayloadSchema,
-  )
-export const handleStreamTextPort = createStreamPortHandler<
-  BackgroundStreamTextSerializablePayload,
-  BackgroundTextStreamSnapshot
->(runStreamTextInBackground, parseStreamTextStartMessage)
-
-export const handleStreamStructuredObjectPort = createStreamPortHandler<
-  BackgroundStreamStructuredObjectSerializablePayload,
-  BackgroundStructuredObjectStreamSnapshot
->(runStructuredObjectStreamInBackground, parseStructuredObjectStartMessage)
-
-export const BACKGROUND_STREAM_PORT_HANDLERS: Readonly<
+const BACKGROUND_STREAM_PORT_HANDLERS: Readonly<
   Record<BackgroundStreamPortName, StreamPortHandler>
 > = {
-  [BACKGROUND_STREAM_PORTS.streamText]: handleStreamTextPort,
-  [BACKGROUND_STREAM_PORTS.streamStructuredObject]: handleStreamStructuredObjectPort,
+  [BACKGROUND_STREAM_PORTS.streamText]: createStreamPortHandler<
+    BackgroundStreamTextSerializablePayload,
+    BackgroundTextStreamSnapshot
+  >(
+    (serializablePayload, options) =>
+      runBackgroundStream(serializablePayload, options, {
+        consumePartStream: consumeTextPartStream,
+      }),
+    createStartMessageParser<BackgroundStreamTextSerializablePayload>(streamTextPayloadSchema),
+  ),
+  [BACKGROUND_STREAM_PORTS.streamStructuredObject]: createStreamPortHandler<
+    BackgroundStreamStructuredObjectSerializablePayload,
+    BackgroundStructuredObjectStreamSnapshot
+  >((serializablePayload, options) => {
+    const objectSchema = createStructuredObjectSchema(serializablePayload.outputSchema)
+    return runBackgroundStream(serializablePayload, options, {
+      objectSchema,
+      consumePartStream: (partStream, consumeOptions) =>
+        consumeStructuredObjectPartStream(partStream, { ...consumeOptions, objectSchema }),
+    })
+  }, createStartMessageParser<BackgroundStreamStructuredObjectSerializablePayload>(
+    structuredObjectPayloadSchema,
+  )),
 }
 
 export function dispatchBackgroundStreamPort(port: Browser.runtime.Port): boolean {

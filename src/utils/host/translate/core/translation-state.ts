@@ -1,5 +1,6 @@
 import { isTranslatedWrapperNode } from "../../dom/filter"
 import { childNodeIndexOf } from "../../dom/node"
+import { walkRootChildTextNodes, walkTextNodes } from "../dom/text-collection"
 
 export interface TextSplitRecord {
   source: Text
@@ -132,14 +133,13 @@ export interface TranslationOnlyAnchorState {
 const translationOnlyAnchorStates = new WeakMap<HTMLElement, TranslationOnlyAnchorState>()
 
 function collectRunText(node: Node, parts: string[]): void {
-  if (node.nodeType === Node.TEXT_NODE) {
-    const data = (node as Text).data
-    if (data.trim()) parts.push(data)
-    return
-  }
-  if (!(node instanceof HTMLElement)) return
-  if (isTranslatedWrapperNode(node)) return
-  for (const child of node.childNodes) collectRunText(child, parts)
+  walkTextNodes(
+    node,
+    (child) => child instanceof HTMLElement && !isTranslatedWrapperNode(child),
+    (textNode) => {
+      if (textNode.data.trim()) parts.push(textNode.data)
+    },
+  )
 }
 
 /** Aggregate comparable text of a swap record's run, in document order. */
@@ -269,23 +269,70 @@ export function wasCharacterDataChangeExtensionDriven(node: Node): boolean {
   return written !== undefined && written === (node as CharacterData).data
 }
 
-const virtualParagraphGroupsBySource = new WeakMap<HTMLElement, VirtualParagraphGroup>()
-const virtualParagraphGroupsByWrapper = new WeakMap<HTMLElement, VirtualParagraphGroup>()
-const bilingualTranslationsBySource = new WeakMap<HTMLElement, BilingualTranslationState>()
-const bilingualTranslationsByWrapper = new WeakMap<HTMLElement, BilingualTranslationState>()
-// Filtering can await storage before wrappers are inserted. Keep only that
-// short-lived pre-insertion window enumerable so a global stop can cancel it.
-const pendingVirtualParagraphGroups = new Set<VirtualParagraphGroup>()
-const pendingBilingualTranslations = new Set<BilingualTranslationState>()
+// ---- Per-layout-source registries ----
+// Bilingual translation states and virtual-paragraph groups keep the same
+// triplet: entries keyed by their layout source, keyed again by each inserted
+// wrapper, plus a pending set. Filtering can await storage before wrappers are
+// inserted; keep only that short-lived pre-insertion window enumerable so a
+// global stop can cancel it.
+
+interface TranslationRegistry<T> {
+  getSource(source: HTMLElement): T | undefined
+  getWrapper(wrapper: HTMLElement): T | undefined
+  setSource(source: HTMLElement, entry: T): void
+  setWrapper(wrapper: HTMLElement, entry: T): void
+  // A replacement state may already be registered under the same key when an
+  // old state is unregistered — delete only while the entry is still the one
+  // registered there.
+  deleteSourceIfCurrent(source: HTMLElement, entry: T): void
+  deleteWrapperIfCurrent(wrapper: HTMLElement, entry: T): void
+  addToPending(entry: T): void
+  claimPending(entry: T): void
+  isPending(entry: T): boolean
+  getPending(): T[]
+}
+
+function createRegistry<T>(): TranslationRegistry<T> {
+  const bySource = new WeakMap<HTMLElement, T>()
+  const byWrapper = new WeakMap<HTMLElement, T>()
+  const pending = new Set<T>()
+  return {
+    getSource: (source) => bySource.get(source),
+    getWrapper: (wrapper) => byWrapper.get(wrapper),
+    setSource: (source, entry) => {
+      bySource.set(source, entry)
+    },
+    setWrapper: (wrapper, entry) => {
+      byWrapper.set(wrapper, entry)
+    },
+    deleteSourceIfCurrent: (source, entry) => {
+      if (bySource.get(source) === entry) bySource.delete(source)
+    },
+    deleteWrapperIfCurrent: (wrapper, entry) => {
+      if (byWrapper.get(wrapper) === entry) byWrapper.delete(wrapper)
+    },
+    addToPending: (entry) => {
+      pending.add(entry)
+    },
+    claimPending: (entry) => {
+      pending.delete(entry)
+    },
+    isPending: (entry) => pending.has(entry),
+    getPending: () => [...pending],
+  }
+}
+
+const bilingualRegistry = createRegistry<BilingualTranslationState>()
+const virtualParagraphRegistry = createRegistry<VirtualParagraphGroup>()
 
 export function registerVirtualParagraphGroup(group: VirtualParagraphGroup): void {
-  virtualParagraphGroupsBySource.set(group.layoutSource, group)
-  pendingVirtualParagraphGroups.add(group)
-  group.wrappers.forEach((wrapper) => virtualParagraphGroupsByWrapper.set(wrapper, group))
+  virtualParagraphRegistry.setSource(group.layoutSource, group)
+  virtualParagraphRegistry.addToPending(group)
+  group.wrappers.forEach((wrapper) => virtualParagraphRegistry.setWrapper(wrapper, group))
 }
 
 export function markVirtualParagraphGroupInserted(group: VirtualParagraphGroup): void {
-  pendingVirtualParagraphGroups.delete(group)
+  virtualParagraphRegistry.claimPending(group)
   group.wrapperPlacements.clear()
   for (const wrapper of group.wrappers) {
     if (!wrapper.parentNode) continue
@@ -298,7 +345,7 @@ export function markVirtualParagraphGroupInserted(group: VirtualParagraphGroup):
 }
 
 export function getPendingVirtualParagraphGroups(): VirtualParagraphGroup[] {
-  return [...pendingVirtualParagraphGroups]
+  return virtualParagraphRegistry.getPending()
 }
 
 function collectHostText(
@@ -306,22 +353,17 @@ function collectHostText(
   excludedWrappers: ReadonlySet<HTMLElement>,
 ): string {
   let text = ""
-  const collect = (node: Node): void => {
-    for (const child of node.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE) {
-        text += (child as Text).data
-      } else if (
-        // Skip ALL extension translation wrappers, not only this state's own:
-        // a descendant state's wrapper inside an ancestor source otherwise counts
-        // as a host-text change and keeps the ancestor permanently stale (#1831).
-        !excludedWrappers.has(child as HTMLElement) &&
-        !isTranslatedWrapperNode(child)
-      ) {
-        collect(child)
-      }
-    }
-  }
-  collect(layoutSource)
+  walkRootChildTextNodes(
+    layoutSource,
+    (child) =>
+      // Skip ALL extension translation wrappers, not only this state's own:
+      // a descendant state's wrapper inside an ancestor source otherwise counts
+      // as a host-text change and keeps the ancestor permanently stale (#1831).
+      !excludedWrappers.has(child as HTMLElement) && !isTranslatedWrapperNode(child),
+    (textNode) => {
+      text += textNode.data
+    },
+  )
   return text
 }
 
@@ -351,50 +393,43 @@ export function collectSourceTextExcludingWrappers(layoutSource: HTMLElement): s
 }
 
 export function registerBilingualTranslationState(state: BilingualTranslationState): void {
-  bilingualTranslationsBySource.set(state.layoutSource, state)
-  if (state.wrapper) bilingualTranslationsByWrapper.set(state.wrapper, state)
-  else pendingBilingualTranslations.add(state)
+  bilingualRegistry.setSource(state.layoutSource, state)
+  if (state.wrapper) bilingualRegistry.setWrapper(state.wrapper, state)
+  else bilingualRegistry.addToPending(state)
 }
 
 export function attachBilingualTranslationWrapper(
   state: BilingualTranslationState,
   wrapper: HTMLElement,
 ): void {
-  if (
-    state.status !== "active" ||
-    bilingualTranslationsBySource.get(state.layoutSource) !== state
-  ) {
+  if (state.status !== "active" || bilingualRegistry.getSource(state.layoutSource) !== state) {
     return
   }
-  pendingBilingualTranslations.delete(state)
+  bilingualRegistry.claimPending(state)
   state.wrapper = wrapper
-  bilingualTranslationsByWrapper.set(wrapper, state)
+  bilingualRegistry.setWrapper(wrapper, state)
 }
 
 export function getPendingBilingualTranslationStates(): BilingualTranslationState[] {
-  return [...pendingBilingualTranslations]
+  return bilingualRegistry.getPending()
 }
 
 export function getBilingualTranslationStateForSource(
   source: HTMLElement,
 ): BilingualTranslationState | undefined {
-  return bilingualTranslationsBySource.get(source)
+  return bilingualRegistry.getSource(source)
 }
 
 export function getBilingualTranslationStateForWrapper(
   wrapper: HTMLElement,
 ): BilingualTranslationState | undefined {
-  return bilingualTranslationsByWrapper.get(wrapper)
+  return bilingualRegistry.getWrapper(wrapper)
 }
 
 export function unregisterBilingualTranslationState(state: BilingualTranslationState): void {
-  pendingBilingualTranslations.delete(state)
-  if (bilingualTranslationsBySource.get(state.layoutSource) === state) {
-    bilingualTranslationsBySource.delete(state.layoutSource)
-  }
-  if (state.wrapper && bilingualTranslationsByWrapper.get(state.wrapper) === state) {
-    bilingualTranslationsByWrapper.delete(state.wrapper)
-  }
+  bilingualRegistry.claimPending(state)
+  bilingualRegistry.deleteSourceIfCurrent(state.layoutSource, state)
+  if (state.wrapper) bilingualRegistry.deleteWrapperIfCurrent(state.wrapper, state)
   state.status = "disposed"
 }
 
@@ -430,10 +465,10 @@ export function resetWrapperTamperRepairs(layoutSource: HTMLElement): void {
 export function isBilingualWrapperContentTampered(state: BilingualTranslationState): boolean {
   return (
     state.status === "active" &&
-    bilingualTranslationsBySource.get(state.layoutSource) === state &&
+    bilingualRegistry.getSource(state.layoutSource) === state &&
     state.layoutSource.isConnected &&
     state.wrapper !== null &&
-    bilingualTranslationsByWrapper.get(state.wrapper) === state &&
+    bilingualRegistry.getWrapper(state.wrapper) === state &&
     state.wrapper.isConnected &&
     state.layoutSource.contains(state.wrapper) &&
     state.wrapperTextContent !== null &&
@@ -445,7 +480,7 @@ export function isBilingualWrapperContentTampered(state: BilingualTranslationSta
 export function isBilingualTranslationStateCurrent(state: BilingualTranslationState): boolean {
   if (
     state.status !== "active" ||
-    bilingualTranslationsBySource.get(state.layoutSource) !== state ||
+    bilingualRegistry.getSource(state.layoutSource) !== state ||
     !state.layoutSource.isConnected
   ) {
     return false
@@ -453,13 +488,13 @@ export function isBilingualTranslationStateCurrent(state: BilingualTranslationSt
 
   if (state.wrapper === null) {
     return (
-      pendingBilingualTranslations.has(state) &&
+      bilingualRegistry.isPending(state) &&
       collectHostText(state.layoutSource, new Set()) === state.sourceTextContent
     )
   }
 
   return (
-    bilingualTranslationsByWrapper.get(state.wrapper) === state &&
+    bilingualRegistry.getWrapper(state.wrapper) === state &&
     state.wrapper.isConnected &&
     state.layoutSource.contains(state.wrapper) &&
     collectHostText(state.layoutSource, new Set([state.wrapper])) === state.sourceTextContent &&
@@ -475,10 +510,10 @@ export function isBilingualTranslationStateCurrent(state: BilingualTranslationSt
 export function findStaleBilingualLayoutSource(node: Node): HTMLElement | undefined {
   let current = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement
   while (current) {
-    const virtualGroup = virtualParagraphGroupsBySource.get(current)
+    const virtualGroup = virtualParagraphRegistry.getSource(current)
     if (virtualGroup && !isVirtualParagraphGroupCurrent(virtualGroup)) return current
 
-    const bilingualState = bilingualTranslationsBySource.get(current)
+    const bilingualState = bilingualRegistry.getSource(current)
     if (bilingualState && !isBilingualTranslationStateCurrent(bilingualState)) return current
     current = current.parentElement
   }
@@ -491,24 +526,24 @@ export function registerVirtualParagraphWrapper(
 ): void {
   if (
     group.status !== "active" ||
-    virtualParagraphGroupsBySource.get(group.layoutSource) !== group
+    virtualParagraphRegistry.getSource(group.layoutSource) !== group
   ) {
     return
   }
   group.wrappers.add(wrapper)
-  virtualParagraphGroupsByWrapper.set(wrapper, group)
+  virtualParagraphRegistry.setWrapper(wrapper, group)
 }
 
 export function getVirtualParagraphGroupForSource(
   source: HTMLElement,
 ): VirtualParagraphGroup | undefined {
-  return virtualParagraphGroupsBySource.get(source)
+  return virtualParagraphRegistry.getSource(source)
 }
 
 export function getVirtualParagraphGroupForWrapper(
   wrapper: HTMLElement,
 ): VirtualParagraphGroup | undefined {
-  return virtualParagraphGroupsByWrapper.get(wrapper)
+  return virtualParagraphRegistry.getWrapper(wrapper)
 }
 
 export function isVirtualParagraphGroupCurrent(
@@ -517,7 +552,7 @@ export function isVirtualParagraphGroupCurrent(
 ): boolean {
   if (
     group.status !== "active" ||
-    virtualParagraphGroupsBySource.get(group.layoutSource) !== group ||
+    virtualParagraphRegistry.getSource(group.layoutSource) !== group ||
     !group.layoutSource.isConnected
   ) {
     return false
@@ -565,7 +600,7 @@ export function isVirtualParagraphGroupCurrent(
     const placement = group.wrapperPlacements.get(candidate)
     return (
       group.wrappers.has(candidate) &&
-      virtualParagraphGroupsByWrapper.get(candidate) === group &&
+      virtualParagraphRegistry.getWrapper(candidate) === group &&
       candidate.isConnected &&
       group.layoutSource.contains(candidate) &&
       placement !== undefined &&
@@ -576,7 +611,7 @@ export function isVirtualParagraphGroupCurrent(
   }
 
   if (wrapper !== undefined) return isOwnedWrapper(wrapper)
-  if (pendingVirtualParagraphGroups.has(group)) return true
+  if (virtualParagraphRegistry.isPending(group)) return true
   return group.wrappers.size > 0 && [...group.wrappers].every(isOwnedWrapper)
 }
 
@@ -584,21 +619,15 @@ export function unregisterVirtualParagraphWrapper(
   group: VirtualParagraphGroup,
   wrapper: HTMLElement,
 ): void {
-  if (virtualParagraphGroupsByWrapper.get(wrapper) === group) {
-    virtualParagraphGroupsByWrapper.delete(wrapper)
-  }
+  virtualParagraphRegistry.deleteWrapperIfCurrent(wrapper, group)
   group.wrappers.delete(wrapper)
   group.wrapperPlacements.delete(wrapper)
 }
 
 export function unregisterVirtualParagraphGroup(group: VirtualParagraphGroup): void {
-  pendingVirtualParagraphGroups.delete(group)
-  if (virtualParagraphGroupsBySource.get(group.layoutSource) === group) {
-    virtualParagraphGroupsBySource.delete(group.layoutSource)
-  }
+  virtualParagraphRegistry.claimPending(group)
+  virtualParagraphRegistry.deleteSourceIfCurrent(group.layoutSource, group)
   group.wrappers.forEach((wrapper) => {
-    if (virtualParagraphGroupsByWrapper.get(wrapper) === group) {
-      virtualParagraphGroupsByWrapper.delete(wrapper)
-    }
+    virtualParagraphRegistry.deleteWrapperIfCurrent(wrapper, group)
   })
 }

@@ -378,10 +378,6 @@ export function isHTMLElement(node: Node): node is HTMLElement {
   )
 }
 
-export function isElement(node: Node): node is Element {
-  return node.nodeType === Node.ELEMENT_NODE
-}
-
 /**
  * More reliable check for Text nodes that works across different contexts
  * avoid using instanceof Text
@@ -394,10 +390,6 @@ export function isTextNode(node: Node): node is Text {
 
 export function isTransNode(node: Node): node is TransNode {
   return isHTMLElement(node) || isTextNode(node)
-}
-
-export function isIFrameElement(node: Node): node is HTMLIFrameElement {
-  return node.nodeType === Node.ELEMENT_NODE && node.nodeName === "IFRAME"
 }
 
 export function isTranslatedWrapperNode(node: Node) {

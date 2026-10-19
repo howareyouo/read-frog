@@ -13,7 +13,6 @@ export const SUBTITLE_PROMPT_TOKENS = [
   "webDescription",
   "videoSummary",
 ] as const
-export const TOKENS = WEB_PAGE_PROMPT_TOKENS
 
 /**
  * Anchor used to distinguish multiple text segments in batch translation: each

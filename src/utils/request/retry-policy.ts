@@ -35,19 +35,19 @@ export interface RequestRetryPolicy {
   decide: (error: unknown, context: RequestRetryContext) => RetryDecision
 }
 
-export const REQUEST_ERROR_META = Symbol("requestErrorMeta")
+const REQUEST_ERROR_META = Symbol("requestErrorMeta")
 
-export const MAX_RETRY_AFTER_MS = 5 * 60_000
+const MAX_RETRY_AFTER_MS = 5 * 60_000
 // Base queue pause after a 429 with no Retry-After header. Doubles per
 // consecutive rate-limit window; sized for the slowest common free tier
 // (Gemini free RPM=15 → ≥4s spacing).
-export const RATE_LIMIT_BASE_PAUSE_MS = 5_000
+const RATE_LIMIT_BASE_PAUSE_MS = 5_000
 // Pause windows without an intervening success before the queue gives up and
 // surfaces errors (the pre-pause failQueue behavior, kept as a backstop).
-export const MAX_CONSECUTIVE_RATE_LIMIT_PAUSES = 5
+const MAX_CONSECUTIVE_RATE_LIMIT_PAUSES = 5
 // Per-task 429 retry cap: guards the pathological case where queue-level
 // counters keep resetting (alternating success) but one task keeps 429ing.
-export const MAX_RATE_LIMIT_RETRIES_PER_TASK = 8
+const MAX_RATE_LIMIT_RETRIES_PER_TASK = 8
 
 interface RetryAwareError {
   [REQUEST_ERROR_META]?: RequestErrorMeta
@@ -123,7 +123,7 @@ export function getRetryAfterMs(meta: RequestErrorMeta, now = Date.now()): numbe
   return getRetryAfterMsFromHeaders(meta.responseHeaders, now)
 }
 
-export function getHeaderValue(headers: unknown, key: string): string | undefined {
+function getHeaderValue(headers: unknown, key: string): string | undefined {
   if (!headers) {
     return undefined
   }

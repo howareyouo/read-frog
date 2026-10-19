@@ -41,21 +41,6 @@ export function isTranslateProvider(provider: string): provider is TranslateProv
   return TRANSLATE_PROVIDER_TYPES.includes(provider)
 }
 
-export const LLM_PROVIDER_TYPES = [
-  "openai-compatible",
-  "jalapenocloud",
-  "atlascloud",
-  "openrouter",
-  "minimax",
-  "siliconflow",
-  "tensdaq",
-  "volcengine",
-] as const satisfies Readonly<(keyof typeof LLM_PROVIDER_MODELS)[]>
-export type LLMProviderTypes = (typeof LLM_PROVIDER_TYPES)[number]
-export function isLLMProvider(provider: string): provider is LLMProviderTypes {
-  return LLM_PROVIDER_TYPES.includes(provider)
-}
-
 const OPENAI_COMPATIBLE_CUSTOM_LLM_PROVIDER_TYPE = "openai-compatible"
 
 const HOSTED_OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES = [
@@ -66,7 +51,16 @@ const HOSTED_OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES = [
   "siliconflow",
   "tensdaq",
   "volcengine",
-] as const satisfies Readonly<LLMProviderTypes[]>
+] as const satisfies Readonly<(keyof typeof LLM_PROVIDER_MODELS)[]>
+
+export const LLM_PROVIDER_TYPES = [
+  OPENAI_COMPATIBLE_CUSTOM_LLM_PROVIDER_TYPE,
+  ...HOSTED_OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES,
+] as const satisfies Readonly<(keyof typeof LLM_PROVIDER_MODELS)[]>
+export type LLMProviderTypes = (typeof LLM_PROVIDER_TYPES)[number]
+export function isLLMProvider(provider: string): provider is LLMProviderTypes {
+  return LLM_PROVIDER_TYPES.includes(provider)
+}
 
 export const OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES = [
   OPENAI_COMPATIBLE_CUSTOM_LLM_PROVIDER_TYPE,
@@ -79,10 +73,7 @@ export function isOpenAICompatibleLLMProvider(
   return OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES.includes(provider)
 }
 
-export const PROTOCOL_COMPATIBLE_LLM_PROVIDER_TYPES = [
-  OPENAI_COMPATIBLE_CUSTOM_LLM_PROVIDER_TYPE,
-  ...HOSTED_OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES,
-] as const satisfies Readonly<OpenAICompatibleLLMProviderTypes[]>
+export const PROTOCOL_COMPATIBLE_LLM_PROVIDER_TYPES = OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES
 export type ProtocolCompatibleLLMProviderTypes =
   (typeof PROTOCOL_COMPATIBLE_LLM_PROVIDER_TYPES)[number]
 export function isProtocolCompatibleLLMProvider(
@@ -112,14 +103,7 @@ export function isDedicatedLLMProvider(provider: string): provider is DedicatedL
 }
 
 export const API_PROVIDER_TYPES = [
-  "openai-compatible",
-  "jalapenocloud",
-  "atlascloud",
-  "openrouter",
-  "minimax",
-  "siliconflow",
-  "tensdaq",
-  "volcengine",
+  ...LLM_PROVIDER_TYPES,
   "deeplx",
   "deepl",
 ] as const satisfies Readonly<(keyof typeof LLM_PROVIDER_MODELS | "deeplx" | "deepl")[]>
@@ -142,20 +126,7 @@ export function isNonAPIProvider(provider: string): provider is NonAPIProviderTy
 }
 
 // all provider names
-export const ALL_PROVIDER_TYPES = [
-  "google-translate",
-  "microsoft-translate",
-  "deeplx",
-  "deepl",
-  "openai-compatible",
-  "jalapenocloud",
-  "atlascloud",
-  "openrouter",
-  "minimax",
-  "siliconflow",
-  "tensdaq",
-  "volcengine",
-] as const satisfies Readonly<TranslateProviderTypes[]>
+export const ALL_PROVIDER_TYPES = TRANSLATE_PROVIDER_TYPES
 export type AllProviderTypes = (typeof ALL_PROVIDER_TYPES)[number]
 
 export const AI_SDK_REASONING_VALUES = [

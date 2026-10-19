@@ -15,10 +15,8 @@ interface ProtocolMap {
   openPage: (data: { url: string; active?: boolean }) => void
   openOptionsPage: (data?: { route?: `/${string}` }) => void
   // config
-  getInitialConfig: () => Config | null
   // translation state
-  getEnablePageTranslationByTabId: (data: { tabId: number }) => boolean | undefined
-  getEnablePageTranslationFromContentScript: () => Promise<boolean>
+  getEnablePageTranslation: (data?: { tabId?: number }) => boolean
   tryToSetEnablePageTranslationByTabId: (data: { tabId: number; enabled: boolean }) => void
   setAndNotifyPageTranslationStateChangedByManager: (data: {
     enabled: boolean

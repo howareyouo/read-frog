@@ -10,6 +10,27 @@ export interface VirtualParagraphWrapperEntry {
   wrapper: HTMLElement
 }
 
+function getOrCreateSplitRecord(
+  source: Text,
+  parent: Node,
+  splitRecords: Map<Text, TextSplitRecord>,
+  splitRecordTarget: TextSplitRecord[],
+): TextSplitRecord {
+  const existing = splitRecords.get(source)
+  if (existing) return existing
+  const splitRecord: TextSplitRecord = {
+    source,
+    parent,
+    originalValue: source.data,
+    createdTails: [],
+    sourceValueAfterSplit: source.data,
+    tailValuesAfterSplit: [],
+  }
+  splitRecords.set(source, splitRecord)
+  splitRecordTarget.push(splitRecord)
+  return splitRecord
+}
+
 function insertWrapperAtBoundary(
   { container, offset }: VirtualParagraphUnit["insertionBoundary"],
   wrapper: HTMLElement,
@@ -32,19 +53,7 @@ function insertWrapperAtBoundary(
       return
     }
 
-    let splitRecord = splitRecords.get(container)
-    if (!splitRecord) {
-      splitRecord = {
-        source: container,
-        parent,
-        originalValue: container.data,
-        createdTails: [],
-        sourceValueAfterSplit: container.data,
-        tailValuesAfterSplit: [],
-      }
-      splitRecords.set(container, splitRecord)
-      splitRecordTarget.push(splitRecord)
-    }
+    const splitRecord = getOrCreateSplitRecord(container, parent, splitRecords, splitRecordTarget)
 
     const tail = container.splitText(offset)
     // Boundaries are applied in reverse document order. Prepending each new
@@ -106,19 +115,7 @@ function splitTopLevelText(
     throw new Error("Virtual paragraph unit source is detached")
   }
 
-  let splitRecord = splitRecords.get(node)
-  if (!splitRecord) {
-    splitRecord = {
-      source: node,
-      parent,
-      originalValue: node.data,
-      createdTails: [],
-      sourceValueAfterSplit: node.data,
-      tailValuesAfterSplit: [],
-    }
-    splitRecords.set(node, splitRecord)
-    splitRecordTarget.push(splitRecord)
-  }
+  const splitRecord = getOrCreateSplitRecord(node, parent, splitRecords, splitRecordTarget)
 
   const tail = node.splitText(offset)
   // Cuts are applied in reverse document order, so prepending each new tail

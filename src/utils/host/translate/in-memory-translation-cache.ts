@@ -55,7 +55,3 @@ export function storeInMemoryTranslation(hash: string, translation: string): voi
     }
   }
 }
-
-export function clearInMemoryTranslationCache(): void {
-  cache.clear()
-}

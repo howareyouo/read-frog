@@ -63,7 +63,7 @@ function findElementAt(root: Document | ShadowRoot, point: Point): Element | nul
   return findDeepestElement(initialElement)
 }
 
-export function findNearestAncestorBlockNodeFor(element: Element, config?: Config) {
+function findNearestAncestorBlockNodeFor(element: Element, config?: Config) {
   const startElement = element.closest(`.${CONTENT_WRAPPER_CLASS}`)?.parentElement || element
   let currentNode = startElement
   while (
@@ -92,94 +92,64 @@ export function deepQueryTopLevelSelector(
   selectorFn: (element: HTMLElement) => boolean,
 ): HTMLElement[] {
   const result: HTMLElement[] = []
-  collectTopLevelSelector(element, selectorFn, result)
+  collectSelectorMatches(element, selectorFn, result, true)
   return result
 }
 
 /**
- * Shared accumulator-based traversal for {@link deepQueryTopLevelSelector}.
- * Fills `out` in place instead of rebuilding and re-spreading a result array at
- * every recursion level (was O(elements × depth) array copies, and could throw
- * RangeError when a single subtree exceeded the argument limit).
+ * Shared accumulator-based traversal behind both deep-query functions. Fills
+ * `out` in place instead of rebuilding and re-spreading a result array at every
+ * recursion level (was O(elements × depth) array copies, and could throw
+ * RangeError when a single subtree exceeded the argument limit). With
+ * `firstMatchOnly` the walk stops descending at the first match; without it,
+ * nested matches (e.g. in-place-swap anchors inside each other) are all
+ * collected.
  */
-function collectTopLevelSelector(
+function collectSelectorMatches(
   element: HTMLElement | ShadowRoot | Document,
   selectorFn: (element: HTMLElement) => boolean,
   out: HTMLElement[],
+  firstMatchOnly: boolean,
 ): void {
   if (element instanceof Document) {
-    if (element.body) collectTopLevelSelector(element.body, selectorFn, out)
+    if (element.body) collectSelectorMatches(element.body, selectorFn, out, firstMatchOnly)
     return
   }
 
   if (element instanceof ShadowRoot) {
     for (const child of element.children) {
-      if (isHTMLElement(child)) collectTopLevelSelector(child, selectorFn, out)
+      if (isHTMLElement(child)) collectSelectorMatches(child, selectorFn, out, firstMatchOnly)
     }
     return
   }
 
   if (selectorFn(element)) {
     out.push(element)
-    return
+    if (firstMatchOnly) return
   }
 
   if (element.shadowRoot) {
     for (const child of element.shadowRoot.children) {
-      if (isHTMLElement(child)) collectTopLevelSelector(child, selectorFn, out)
+      if (isHTMLElement(child)) collectSelectorMatches(child, selectorFn, out, firstMatchOnly)
     }
   }
 
   for (const child of element.children) {
-    if (isHTMLElement(child)) collectTopLevelSelector(child, selectorFn, out)
+    if (isHTMLElement(child)) collectSelectorMatches(child, selectorFn, out, firstMatchOnly)
   }
 }
 
 /**
  * Collect EVERY matching element under the root (shadow roots included),
- * without stopping at the first match the way deepQueryTopLevelSelector does —
- * nested matches (e.g. in-place-swap anchors inside each other) must all be
- * returned.
+ * without stopping at the first match the way deepQueryTopLevelSelector does.
  */
 export function deepQueryAllSelector(
   element: HTMLElement | ShadowRoot | Document,
   selectorFn: (element: HTMLElement) => boolean,
 ): HTMLElement[] {
   const result: HTMLElement[] = []
-  collectAllSelector(element, selectorFn, result)
+  collectSelectorMatches(element, selectorFn, result, false)
   return result
-}
-
-function collectAllSelector(
-  element: HTMLElement | ShadowRoot | Document,
-  selectorFn: (element: HTMLElement) => boolean,
-  out: HTMLElement[],
-): void {
-  if (element instanceof Document) {
-    if (element.body) collectAllSelector(element.body, selectorFn, out)
-    return
-  }
-
-  if (element instanceof ShadowRoot) {
-    for (const child of element.children) {
-      if (isHTMLElement(child)) collectAllSelector(child, selectorFn, out)
-    }
-    return
-  }
-
-  if (selectorFn(element)) {
-    out.push(element)
-  }
-
-  if (element.shadowRoot) {
-    for (const child of element.shadowRoot.children) {
-      if (isHTMLElement(child)) collectAllSelector(child, selectorFn, out)
-    }
-  }
-
-  for (const child of element.children) {
-    if (isHTMLElement(child)) collectAllSelector(child, selectorFn, out)
-  }
 }
 
 export function unwrapDeepestOnlyHTMLChild(element: HTMLElement, config: Config) {

@@ -48,7 +48,7 @@ export async function bootstrapHostContent(
   // For late-loading iframes: check if translation is already enabled for this tab
   let translationEnabled = false
   try {
-    translationEnabled = await sendMessage("getEnablePageTranslationFromContentScript", undefined)
+    translationEnabled = await sendMessage("getEnablePageTranslation", undefined)
   } catch (error) {
     // Extension context may be invalidated during update, proceed without auto-start
     logger.error("Failed to check translation state:", error)

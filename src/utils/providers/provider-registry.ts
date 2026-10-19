@@ -38,7 +38,7 @@ export type ProviderRefForCapability<C extends ProviderCapability> = ResolvedPro
 export type CustomActionProviderRef = ProviderRefForCapability<"customAction">
 export type SelectionTranslationProviderRef = ProviderRefForCapability<"selectionTranslation">
 
-export function getLocalProviderPredicateForCapability<C extends ProviderCapability>(
+function getLocalProviderPredicateForCapability<C extends ProviderCapability>(
   capability: C,
 ): ProviderConfigPredicate<ProviderConfigForCapability<C>> {
   return LOCAL_PROVIDER_CAPABILITY_PREDICATES[capability] as ProviderConfigPredicate<
