@@ -6,6 +6,7 @@ import type { BatchQueueConfig, RequestQueueConfig } from "@/types/config/transl
 import { batchQueueConfigSchema } from "@/types/config/translate"
 import type { SubtitlePromptContext, WebPagePromptContext } from "@/types/content"
 import { putBatchRequestRecord } from "@/utils/batch-request-record"
+import { getCachedConfig } from "@/utils/config/storage"
 import { CONFIG_STORAGE_KEY, DEFAULT_CONFIG } from "@/utils/constants/config"
 import {
   BATCH_SEGMENT_LINE_PATTERN,
@@ -946,10 +947,10 @@ export function setUpSubtitlesTranslationQueue(): void {
   watchQueueConfig("subtitles", queuesPromise, selectSubtitlesQueueConfig)
   watchProviderConfigForCooldownReset()
 
-  onMessage("enqueueSubtitlesTranslateBatch", async (message) => {
+  onMessage("enqueueSubtitlesTranslation", async (message) => {
     const { requestQueue, batchQueue } = await queuesPromise
     const {
-      data: { items, langConfig, scheduleAt, webTitle, webDescription, summary },
+      data: { text, langConfig, hash, scheduleAt, startsInMs, webTitle, webDescription, summary },
     } = message
 
     const context: SubtitlePromptContext = {
@@ -958,28 +959,12 @@ export function setUpSubtitlesTranslationQueue(): void {
       videoSummary: normalizePromptContextValue(summary),
     }
 
-    // One IndexedDB read for the whole window — the previous per-cue message
-    // paid a round trip and a cache read per subtitle, so a burst of cues did
-    // N reads before the batch queue ever saw them (P1).
-    const hashes = items.map((item) => item.hash)
-    const cachedEntries = hashes.length ? await db.translationCache.bulkGet(hashes) : []
-    const translations: (string | null)[] = new Array(items.length).fill(null)
-    const uncachedIndexes: number[] = []
-    for (let i = 0; i < items.length; i++) {
-      const cached = cachedEntries[i]
-      if (cached) {
-        translations[i] = cached.translation
-      } else {
-        uncachedIndexes.push(i)
-      }
+    const cached = await db.translationCache.get(hash)
+    if (cached) {
+      return { translation: cached.translation }
     }
 
-    // Everything was cached: no provider call at all.
-    if (uncachedIndexes.length === 0) {
-      return { translations }
-    }
-
-    const config = await ensureInitializedConfig()
+    const config = await getCachedConfig()
     if (!config) {
       throw new Error("Config unavailable for subtitles translation")
     }
@@ -988,74 +973,49 @@ export function setUpSubtitlesTranslationQueue(): void {
     // per batch at flush time), non-LLM services cannot batch and go one cue
     // per request, rotating per cue.
     const useBatchQueue = hasUsableLLMFeatureProvider(config, "videoSubtitles")
-    const toCache: { key: string; translation: string; createdAt: Date }[] = []
-    let firstErrorMessage: string | undefined
 
-    const translateUncached = async (index: number): Promise<void> => {
-      const item = items[index]!
-      const dueAt = typeof item.startsInMs === "number" ? Date.now() + item.startsInMs : undefined
-      try {
-        let result: string
-        if (useBatchQueue) {
-          // Same context for the whole window → same (provider-agnostic)
-          // batchKey → the batch queue composes every uncached cue in this
-          // window — and in later windows, until it fills or a cue comes due —
-          // into ONE request (P4). The provider is chosen per batch by
-          // resolveBatchProvider above.
-          result = await batchQueue.enqueue({
-            text: item.text,
-            langConfig,
-            hash: item.hash,
-            scheduleAt,
-            // Anchor the urgency deadline at receive time, pulled ahead by
-            // the translate lead, so the batch's hold window reflects how long
-            // the cue actually has before playback minus the head start the
-            // request needs to land in time.
-            dueAt,
-            context,
+    // Anchor the urgency deadline at receive time, pulled ahead by the
+    // translate lead, so the batch's hold window reflects how long the cue
+    // actually has before playback minus the head start the request needs to
+    // land in time.
+    const dueAt = typeof startsInMs === "number" ? Date.now() + startsInMs : undefined
+
+    try {
+      let result: string
+      if (useBatchQueue) {
+        // Same context for the whole look-ahead window → same
+        // (provider-agnostic) batchKey → the batch queue composes every
+        // uncached cue in this window — and in later windows, until it fills
+        // or a cue comes due — into ONE request (P4). The provider is chosen
+        // per batch by resolveBatchProvider above.
+        result = await batchQueue.enqueue({ text, langConfig, hash, scheduleAt, dueAt, context })
+      } else {
+        // Resolved INSIDE the thunk, per attempt: a provider picked at enqueue
+        // time would be baked into the closure and re-tried on every retry,
+        // which is the same bug the batch path had. The rotation skips
+        // providers that are cooling, so a retry lands on a fresh one.
+        const thunk = (signal?: AbortSignal) =>
+          executeWithProviderFailover({
+            config,
+            requireLLM: false,
+            signal,
+            run: (provider) =>
+              executeTranslate(
+                text,
+                langConfig,
+                getLocalProviderConfig(provider),
+                getSubtitlesTranslatePrompt,
+                { signal },
+              ),
           })
-        } else {
-          // Resolved INSIDE the thunk, per attempt: a provider picked at enqueue
-          // time would be baked into the closure and re-tried on every retry,
-          // which is the same bug the batch path had. The rotation skips
-          // providers that are cooling, so a retry lands on a fresh one.
-          const thunk = (signal?: AbortSignal) =>
-            executeWithProviderFailover({
-              config,
-              requireLLM: false,
-              signal,
-              run: (provider) =>
-                executeTranslate(
-                  item.text,
-                  langConfig,
-                  getLocalProviderConfig(provider),
-                  getSubtitlesTranslatePrompt,
-                  { signal },
-                ),
-            })
-          result = await requestQueue.enqueue(thunk, scheduleAt, item.hash, undefined, { dueAt })
-        }
-        translations[index] = result
-        toCache.push({ key: item.hash, translation: result, createdAt: new Date() })
-      } catch (error) {
-        // A single cue's failure must not blank the whole window: leave its
-        // slot null so the UI keeps the cues that succeeded (P5).
-        if (firstErrorMessage === undefined) {
-          firstErrorMessage = toFriendlyTranslationErrorMessage(error)
-        }
+        result = await requestQueue.enqueue(thunk, scheduleAt, hash, undefined, { dueAt })
       }
-    }
-
-    await Promise.all(uncachedIndexes.map(translateUncached))
-
-    if (toCache.length > 0) {
-      await db.translationCache.bulkPut(toCache)
-    }
-
-    return {
-      translations,
-      // Only meaningful when every cue failed — the content side shows it then.
-      errorMessage: translations.some((t) => t !== null) ? undefined : firstErrorMessage,
+      await db.translationCache.put({ key: hash, translation: result, createdAt: new Date() })
+      return { translation: result }
+    } catch (error) {
+      // A failed cue reports null; the content side keeps every cue that
+      // succeeded and only surfaces this message when none did (P5).
+      return { translation: null, errorMessage: toFriendlyTranslationErrorMessage(error) }
     }
   })
 

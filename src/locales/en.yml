@@ -917,7 +917,7 @@ options:
         maxItemsPerBatch:
           description: "Maximum subtitle lines: how many lines share one request. Providers that are not AI ignore both"
         minItemsPerBatch:
-          description: "Minimum subtitle lines: a batch that reaches this count dispatches as soon as a request slot frees up; below it, the batch waits for the batching window and is sent with whatever it holds. Default 1 = one request per line. Non-AI providers ignore this"
+          description: "Minimum subtitle lines: only takes effect when the dispatcher is busy — a batch below this count keeps absorbing later lines until its earliest line nears playback (10 seconds at most); a batch at the count goes at the first free slot. An idle dispatcher ignores it and sends every batch when its window closes. Default 1. Non-AI providers ignore this"
         batchDelay:
           description: "Batching window in seconds: how long a batch stays open to accumulate more subtitle lines before it is sent anyway. A line about to play sends its batch immediately. Default 0.1"
       translateLookAhead:

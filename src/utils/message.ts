@@ -73,33 +73,32 @@ interface ProtocolMap {
     providerRef: SerializableProviderRef
   }) => Promise<string | null>
   /**
-   * One message for a whole window of cues, not one per cue. The per-cue
-   * version paid a message round trip and an IndexedDB read per subtitle, and
-   * — worse — admitted the cues to the background one at a time, so the batch
-   * queue could never compose them.
+   * One message per cue, not per window. The background composes the cue into
+   * provider-agnostic batches itself (the provider is picked once per batch at
+   * flush time), and resolving per cue lets the coordinator publish each line
+   * the moment its own request lands instead of pinning the near, on-screen
+   * cues behind the far, deliberately-held prefetch cues that merely share the
+   * look-ahead window.
    */
-  enqueueSubtitlesTranslateBatch: (data: {
-    items: Array<{
-      text: string
-      hash: string
-      // How long until the cue should start being translated, in ms, at
-      // request time (its distance ahead of the playback position, minus the
-      // translate lead). Lets the batch queue hold below-min batches until
-      // their earliest cue nears playback instead of force-flushing at
-      // batchDelay. Absent for full-video downloads (no playback position).
-      startsInMs?: number
-    }>
+  enqueueSubtitlesTranslation: (data: {
+    text: string
+    hash: string
+    // How long until the cue should start being translated, in ms, at
+    // request time (its distance ahead of the playback position, minus the
+    // translate lead). Lets the batch queue hold below-min batches until
+    // their earliest cue nears playback instead of force-flushing at
+    // batchDelay. Absent for full-video downloads (no playback position).
+    startsInMs?: number
     langConfig: Config["language"]
     scheduleAt: number
     webTitle?: string | null
     webDescription?: string | null
     summary?: string | null
   }) => Promise<{
-    // null marks a cue whose request failed, so a partial failure still renders
-    // the cues that succeeded instead of blanking the whole window.
-    translations: (string | null)[]
-    // Friendly message from the first failure; only consulted when every cue
-    // failed and the caller has to show something.
+    // null marks a failed cue, so a partial failure still renders the cues
+    // that succeeded instead of blanking the window.
+    translation: string | null
+    // Friendly message from the failure; present only when translation is null.
     errorMessage?: string
   }>
   getSubtitlesSummary: (data: {

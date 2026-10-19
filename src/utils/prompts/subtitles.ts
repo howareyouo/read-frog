@@ -1,5 +1,5 @@
 import type { SubtitlePromptContext } from "@/types/content"
-import { getLocalConfig } from "@/utils/config/storage"
+import { getCachedConfig } from "@/utils/config/storage"
 import { DEFAULT_CONFIG } from "../constants/config"
 import {
   BUILT_IN_SUBTITLE_TRANSLATE_PROMPTS,
@@ -20,7 +20,10 @@ export async function getSubtitlesTranslatePrompt(
   input: string,
   options?: TranslatePromptOptions<SubtitlePromptContext>,
 ): Promise<TranslatePromptResult> {
-  const config = (await getLocalConfig()) ?? DEFAULT_CONFIG
+  // Cached variant: the cache-key builder calls this once per subtitle cue, so
+  // an uncached storage read + full config schema parse per cue would dominate
+  // the cost of hashing a look-ahead window (and a whole-video export).
+  const config = (await getCachedConfig()) ?? DEFAULT_CONFIG
   const customPromptsConfig = config.videoSubtitles.customPromptsConfig
   const { patterns, promptId } = customPromptsConfig
 

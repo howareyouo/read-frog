@@ -1,6 +1,6 @@
 import type { Config } from "@/types/config/config"
 import type { WebPagePromptContext } from "@/types/content"
-import { getLocalConfig } from "@/utils/config/storage"
+import { getCachedConfig } from "@/utils/config/storage"
 import {
   HTML_ATTRIBUTE_MARKER,
   parseHtmlAttributeMarkers,
@@ -122,6 +122,6 @@ export async function getTranslatePrompt(
   input: string,
   options?: TranslatePromptOptions<WebPagePromptContext>,
 ): Promise<TranslatePromptResult> {
-  const config = (await getLocalConfig()) ?? DEFAULT_CONFIG
+  const config = (await getCachedConfig()) ?? DEFAULT_CONFIG
   return getTranslatePromptFromConfig(config.pageTranslation, targetLang, input, options)
 }

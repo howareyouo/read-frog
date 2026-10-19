@@ -214,7 +214,7 @@ export async function fetchSubtitlesSummary(
 export async function translateSubtitles(
   fragments: SubtitlesFragment[],
   videoContext: SubtitlesVideoContext,
-  configOverride?: Config,
+  configOverride?: Config | null,
   requestedTimeMs?: number,
   onFragmentSettled?: (fragment: SubtitlesFragment) => void,
 ): Promise<SubtitlesFragment[]> {
@@ -271,34 +271,29 @@ export async function translateSubtitles(
   // prevent. The awaited result is still returned for the batch-level error gate.
   const results = await Promise.allSettled(
     fragments.map(async (fragment, index) => {
-      const value = await sendMessage("enqueueSubtitlesTranslateBatch", {
-        items: [
-          {
-            text: fragment.text,
-            hash: hashes[index]!,
-            // With a playback position the background can hold below-min
-            // batches until their earliest cue nears playback; without one
-            // (full-video download) the queue falls back to batchDelay. The
-            // deadline is pulled TRANSLATE_LEAD_MS ahead of the cue's
-            // playback time, so the request starts that much earlier and the
-            // translation lands before the line is read instead of after.
-            startsInMs:
-              requestedTimeMs === undefined
-                ? undefined
-                : fragment.start - requestedTimeMs - TRANSLATE_LEAD_MS,
-          },
-        ],
+      const value = await sendMessage("enqueueSubtitlesTranslation", {
+        text: fragment.text,
+        hash: hashes[index]!,
+        // With a playback position the background can hold below-min
+        // batches until their earliest cue nears playback; without one
+        // (full-video download) the queue falls back to batchDelay. The
+        // deadline is pulled TRANSLATE_LEAD_MS ahead of the cue's
+        // playback time, so the request starts that much earlier and the
+        // translation lands before the line is read instead of after.
+        startsInMs:
+          requestedTimeMs === undefined
+            ? undefined
+            : fragment.start - requestedTimeMs - TRANSLATE_LEAD_MS,
         langConfig,
         scheduleAt: Date.now(),
         webTitle: subtitlePromptContext.webTitle,
         webDescription: subtitlePromptContext.webDescription,
         summary: enableAIContentAware ? subtitlePromptContext.videoSummary : undefined,
       })
-      const translation = value.translations[0] ?? null
       // An empty slot is a failed cue: leave it to the whole-window error gate
       // rather than publishing a blank over the source line.
-      if (translation && onFragmentSettled) {
-        onFragmentSettled({ ...fragment, translation })
+      if (value.translation && onFragmentSettled) {
+        onFragmentSettled({ ...fragment, translation: value.translation })
       }
       return value
     }),
@@ -309,12 +304,12 @@ export async function translateSubtitles(
   const translated = fragments.map((fragment, index) => {
     const result = results[index]
     if (result?.status === "fulfilled") {
-      const translation = result.value.translations[0] ?? null
+      const { translation, errorMessage } = result.value
       if (translation !== null) {
         anySucceeded = true
         return { ...fragment, translation }
       }
-      firstErrorMessage ??= result.value.errorMessage
+      firstErrorMessage ??= errorMessage
     } else if (result?.status === "rejected") {
       const reason = result.reason
       firstErrorMessage ??= reason instanceof Error ? reason.message : String(reason)

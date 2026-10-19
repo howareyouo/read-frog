@@ -1,3 +1,4 @@
+import type { Config } from "@/types/config/config"
 import { getCachedConfig } from "@/utils/config/storage"
 import {
   DEFAULT_TRANSLATE_LOOK_AHEAD_SECONDS,
@@ -310,13 +311,14 @@ export class TranslationCoordinator {
 
     // Fire-and-forget: the tick loop must not wait on this round's requests, or a
     // pending sub-minItemsPerBatch batch in the queue could never absorb later arrivals.
-    void this.applyTranslationResult(batch, runId, currentTimeMs)
+    void this.applyTranslationResult(batch, runId, currentTimeMs, config)
   }
 
   private async applyTranslationResult(
     batch: SubtitlesFragment[],
     runId: number,
     requestedTimeMs: number,
+    config: Config | null,
   ) {
     // Publish a cue the instant its own request lands, instead of waiting for the
     // whole look-ahead window to return. The background deliberately holds a far
@@ -339,7 +341,7 @@ export class TranslationCoordinator {
       const translated = await translateSubtitles(
         batch,
         this.videoContext,
-        undefined,
+        config,
         requestedTimeMs,
         publishOne,
       )
