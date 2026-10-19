@@ -507,6 +507,14 @@ async function createTranslationQueues<TContext>(config: TranslationQueueSetupCo
     // (flushing early would only freeze their composition); below-min batches
     // ignore the gate and flush at batchDelay.
     dispatchGate: { nextDispatchEtaMs: () => requestQueue.nextDispatchEtaMs() },
+    // Webpage: the min count is the dispatch trigger — a batch that reached
+    // minItemsPerBatch goes at the first near dispatch slot even with window
+    // left ("满足了再发", matching the queue settings' description). Subtitles
+    // keep the window as their burst-compose window (see
+    // DEFAULT_BATCH_DELAY_SECONDS): a look-ahead tick's cues land back to back,
+    // and dispatching each at-min batch on arrival would turn every idle gate
+    // into per-cue requests.
+    dispatchAtMinCount: queueName === "webpage",
     getBatchKey: (data) => {
       // Subtitle items are enqueued WITHOUT a provider and the provider is
       // picked at flush time, so the key must be provider-agnostic — cues from

@@ -84,6 +84,70 @@ describe("BatchQueue minItemsPerBatch gating", () => {
     expect(await Promise.all(promises)).toEqual(["a", "b"])
   })
 
+  it("dispatches a satisfied batch immediately when dispatchAtMinCount is set", async () => {
+    const { queue, executed } = createQueue({
+      minItemsPerBatch: 3,
+      dispatchAtMinCount: true,
+    })
+    const promises = [queue.enqueue("a"), queue.enqueue("b"), queue.enqueue("c")]
+
+    // "满足了再发": reaching minItemsPerBatch is the dispatch trigger itself —
+    // with the limiter idle the batch goes at once instead of waiting out the
+    // rest of its window.
+    await vi.advanceTimersByTimeAsync(0)
+    expect(executed).toEqual([["a", "b", "c"]])
+    expect(await Promise.all(promises)).toEqual(["a", "b", "c"])
+  })
+
+  it("still waits out the window for a below-min batch with dispatchAtMinCount", async () => {
+    const { queue, executed } = createQueue({
+      minItemsPerBatch: 3,
+      dispatchAtMinCount: true,
+    })
+    const promise = queue.enqueue("a")
+
+    // The flag only short-circuits the wait for SATISFIED batches; a
+    // below-min batch still composes until batchDelay.
+    await vi.advanceTimersByTimeAsync(99)
+    expect(executed).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(executed).toEqual([["a"]])
+    expect(await promise).toBe("a")
+  })
+
+  it("sends a satisfied batch at the first near slot instead of waiting out the window", async () => {
+    let etaMs = 10_000
+    const { queue, executed } = createQueue({
+      minItemsPerBatch: 2,
+      batchDelay: 5_000,
+      dispatchAtMinCount: true,
+      dispatchGate: { nextDispatchEtaMs: () => etaMs },
+    })
+    const promises = [queue.enqueue("a"), queue.enqueue("b")]
+
+    // Gate backed up: the satisfied batch keeps composing so the coming slot
+    // is spent on the largest batch ready so far.
+    await vi.advanceTimersByTimeAsync(1_500)
+    expect(executed).toEqual([])
+
+    // Slot within reach: the batch goes on the next gate poll — well before
+    // the 5s window closes, which is exactly what the flag buys.
+    etaMs = 50
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(executed).toEqual([["a", "b"]])
+    expect(await Promise.all(promises)).toEqual(["a", "b"])
+  })
+
+  it("dispatches each arrival on its own when dispatchAtMinCount is set and minItemsPerBatch is left at 1", async () => {
+    const { queue, executed } = createQueue({ dispatchAtMinCount: true })
+    const promises = [queue.enqueue("a"), queue.enqueue("b")]
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(executed).toEqual([["a"], ["b"]])
+    expect(await Promise.all(promises)).toEqual(["a", "b"])
+  })
+
   it("dispatches each arrival on its own when batchDelay is 0", async () => {
     const { queue, executed } = createQueue({ batchDelay: 0 })
     const promise = queue.enqueue("a")

@@ -125,11 +125,13 @@ export interface BatchOptions<T, R, TProvider = unknown> {
   maxCharactersPerBatch: number
   maxItemsPerBatch: number
   /**
-   * Minimum items a batch must accumulate before it may dispatch. At or above
-   * this count the batch flushes at the first near dispatch slot — immediately
-   * when the limiter is idle; below it, the batch waits until its age reaches
-   * batchDelay and is force-flushed then. Clamped to maxItemsPerBatch.
-   * 1 = dispatch each arrival on its own.
+   * Minimum items a batch must accumulate before it may dispatch: below it,
+   * the batch waits until its age reaches batchDelay and is force-flushed
+   * then. Whether REACHING the count short-circuits the rest of the window is
+   * `dispatchAtMinCount`'s call — with it, the batch flushes at the first near
+   * dispatch slot (immediately when the limiter is idle); without it (the
+   * default), a satisfied batch still composes until the window closes.
+   * Clamped to maxItemsPerBatch.
    */
   minItemsPerBatch?: number
   /**
@@ -140,6 +142,16 @@ export interface BatchOptions<T, R, TProvider = unknown> {
    * arrival on its own.
    */
   batchDelay: number
+  /**
+   * Let a batch that reached minItemsPerBatch dispatch at the first near
+   * dispatch slot even while its window is still open — "send once satisfied":
+   * the window then only bounds how long a below-min batch accumulates.
+   * Default false keeps the window as a minimum hold for EVERY batch, which is
+   * what the subtitles queue needs: its window doubles as the burst-compose
+   * window (a look-ahead tick's cues land back to back, and an idle gate would
+   * otherwise flush each cue as its own request; deadlines preempt the window).
+   */
+  dispatchAtMinCount?: boolean
   /**
    * Absolute ms timestamp when the item's content is needed (e.g. the cue's
    * playback time). Lets a below-min batch with no dispatch slot to take keep
@@ -183,6 +195,7 @@ export class BatchQueue<T, R, TProvider = unknown> {
   private maxItemsPerBatch: number
   private minItemsPerBatch: number
   private batchDelay: number
+  private dispatchAtMinCount: boolean
   private getBatchDueAt?: (data: T) => number | undefined
   /**
    * EWMA of the observed flush→response round trip per batchKey (which carries
@@ -212,6 +225,7 @@ export class BatchQueue<T, R, TProvider = unknown> {
     this.maxItemsPerBatch = config.maxItemsPerBatch
     this.minItemsPerBatch = config.minItemsPerBatch ?? 1
     this.batchDelay = config.batchDelay
+    this.dispatchAtMinCount = config.dispatchAtMinCount ?? false
     this.getBatchDueAt = config.getBatchDueAt
     this.maxRetries = config.maxRetries ?? 3
     this.enableFallbackToIndividual = config.enableFallbackToIndividual ?? true
@@ -329,9 +343,21 @@ export class BatchQueue<T, R, TProvider = unknown> {
         continue
       }
 
+      const underMin = batch.tasks.length < this.effectiveMinItemsPerBatch()
+
+      // Min-count dispatch (dispatchAtMinCount queues): a batch that reached
+      // minItemsPerBatch goes at the first near dispatch slot — immediately
+      // when the limiter is idle — without waiting out the rest of its window.
+      // "满足了再发": the window only bounds how long a below-min batch keeps
+      // accumulating. While the gate is backed up the batch falls through and
+      // keeps composing, so the slot is spent on the largest batch ready so far.
+      if (!underMin && this.dispatchAtMinCount && gateHasSlot) {
+        batchesToFlush.push(batchKey)
+        continue
+      }
+
       // Time the batch stops composing and goes, whether because the
       // accumulation window elapsed or because its earliest deadline is closer.
-      const underMin = batch.tasks.length < this.effectiveMinItemsPerBatch()
       // A below-min batch may hold past its window for the deadline only while
       // dispatch is contended. With a free slot the hold buys nothing but late
       // subtitles: the request could already be in flight and land inside the
@@ -351,13 +377,14 @@ export class BatchQueue<T, R, TProvider = unknown> {
       }
 
       // When to look again. A batch whose window elapsed waits on the limiter;
-      // a batch held for its deadline must additionally wake the moment a slot
-      // appears, or it sleeps through exactly the idle capacity that makes
-      // prefetching free.
+      // a batch held for its deadline — or holding to compose while a
+      // dispatchAtMinCount dispatch waits for a slot — must additionally wake
+      // the moment a slot appears, or it sleeps through exactly the idle
+      // capacity that makes prefetching free.
       let wakeMs: number
       if (now >= readyAtMs) {
         wakeMs = Math.min(etaMs - this.batchDelay, MAX_GATE_POLL_MS)
-      } else if (holdForComposition) {
+      } else if (holdForComposition || (!underMin && this.dispatchAtMinCount)) {
         wakeMs = Math.min(readyAtMs - now, Math.max(0, etaMs - this.batchDelay), MAX_GATE_POLL_MS)
       } else {
         // Still composing: wake when the window closes. A deadline closer than
