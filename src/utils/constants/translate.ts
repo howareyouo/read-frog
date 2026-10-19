@@ -11,13 +11,15 @@ export const DEFAULT_REQUEST_CAPACITY = 20
 
 export const DEFAULT_MAX_CHARACTER_PER_BATCH = 1000
 export const DEFAULT_MAX_ITEMS_PER_BATCH = 4
-// 1 = dispatch each arrival on its own (no accumulation).
+// 1 = no floor: the compose window and the size caps decide what merges.
 export const DEFAULT_MIN_ITEMS_PER_BATCH = 1
 // The batch compose window in seconds: how long a batch stays open for
 // arrivals before it force-flushes. For the subtitles queue this doubles as
 // the burst-compose window — a look-ahead tick's cues land back to back, and
 // without a window the dispatch gate's free slot would flush each cue as its
-// own request (deadlines preempt the window).
+// own request (deadlines preempt the window). The webpage queue runs the same
+// value as a ROLLING window (timed from the latest paragraph, only while
+// minItemsPerBatch is above 1 — see batchReadyAtMs).
 export const DEFAULT_BATCH_DELAY_SECONDS = 0.1
 
 export const DEFAULT_BATCH_CONFIG = {

@@ -40,8 +40,9 @@ export async function bindSubtitlesToggleShortcut(
       adapter.toggleSubtitlesByShortcut(nextVisible)
 
       toastManager.add({
-        type: "info",
+        type: nextVisible ? "success" : "error",
         title: i18n.t(nextVisible ? "subtitles.toggle.enabled" : "subtitles.toggle.disabled"),
+        data: { tone: nextVisible ? "success" : "error" },
       })
     },
     {

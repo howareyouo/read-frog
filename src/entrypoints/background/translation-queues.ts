@@ -368,6 +368,30 @@ export interface TranslateBatchData<TContext = unknown> {
 }
 
 /**
+ * The bucket an item composes in: the language pair plus the prompt context,
+ * i.e. everything that makes two requests meaningfully the same request.
+ *
+ * The provider is deliberately NOT part of it. Page translation rotates across
+ * the feature's providers paragraph by paragraph
+ * (`resolveRotatingPageTranslationProvider`), so a provider-scoped key splits
+ * one page's paragraphs into one bucket per provider: with
+ * `minItemsPerBatch` above 1 no bucket ever reaches the floor, and every
+ * paragraph ships as its own request. Mixing is safe because the page hash is
+ * built from the provider SET identity
+ * (`getFeatureProviderSetCacheIdentity`), not from the rotating instance, so a
+ * batch's result is cached under the same key whichever provider it went to;
+ * the batch's first item supplies the provider (`executeBatch`).
+ */
+export function buildTranslationBatchKey<TContext>(
+  data: Pick<TranslateBatchData<TContext>, "langConfig" | "context">,
+): string {
+  return Sha256Hex(
+    `${data.langConfig.sourceCode}-${data.langConfig.targetCode}`,
+    data.context ? JSON.stringify(data.context) : "",
+  )
+}
+
+/**
  * Compose the cancellation scope from the message sender and the content
  * script's session id. Building it background-side from `sender.tab.id` makes
  * cross-tab cancellation impossible by construction.
@@ -515,20 +539,7 @@ async function createTranslationQueues<TContext>(config: TranslationQueueSetupCo
     // and dispatching each at-min batch on arrival would turn every idle gate
     // into per-cue requests.
     dispatchAtMinCount: queueName === "webpage",
-    getBatchKey: (data) => {
-      // Subtitle items are enqueued WITHOUT a provider and the provider is
-      // picked at flush time, so the key must be provider-agnostic — cues from
-      // consecutive look-ahead windows have to land in the same pending batch
-      // to compose. Webpage items still carry their own provider and group by
-      // it (their per-item cache hashes are provider-specific, so a mixed batch
-      // would send text to a provider it was not keyed for).
-      const providerIdentity =
-        queueName === "subtitles" ? "" : getLocalProviderConfig(data.provider!).id
-      return Sha256Hex(
-        `${data.langConfig.sourceCode}-${data.langConfig.targetCode}-${providerIdentity}`,
-        data.context ? JSON.stringify(data.context) : "",
-      )
-    },
+    getBatchKey: buildTranslationBatchKey,
     getCharacters: (data) => data.text.length,
     getDedupKey: (data) => data.hash,
     getScope: (data) => data.scope,

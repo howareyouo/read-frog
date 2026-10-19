@@ -27,6 +27,12 @@ type ToastData = {
     "children" | "className" | "swipeDirection" | "toast"
   >
   tooltipStyle?: boolean
+  tone?: "success" | "error"
+}
+
+const TONE_TITLE_COLORS: Record<NonNullable<ToastData["tone"]>, string> = {
+  success: "var(--color-toast-success)",
+  error: "var(--color-destructive)",
 }
 
 export type ToastPosition =
@@ -70,10 +76,12 @@ function FullToastContent({
   Icon,
   toast,
   stacked = false,
+  titleColor,
 }: {
   Icon: TablerIcon | null
   toast: Toast.Root.ToastObject
   stacked?: boolean
+  titleColor?: string
 }): ReactElement {
   return (
     <Toast.Content
@@ -95,7 +103,11 @@ function FullToastContent({
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <Toast.Title className="font-medium [overflow-wrap:anywhere]" data-slot="toast-title" />
+          <Toast.Title
+            className="font-medium [overflow-wrap:anywhere]"
+            style={titleColor ? { color: titleColor } : undefined}
+            data-slot="toast-title"
+          />
           <Toast.Description
             className="[overflow-wrap:anywhere] text-muted-foreground"
             data-slot="toast-description"
@@ -146,6 +158,7 @@ function Toasts({
         {toasts.map((toast) => {
           const Icon = toast.type ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS] : null
           const toastData = toast.data as ToastData | undefined
+          const titleColor = toastData?.tone ? TONE_TITLE_COLORS[toastData.tone] : undefined
 
           return (
             <Toast.Root
@@ -187,7 +200,7 @@ function Toasts({
               swipeDirection={swipeDirection}
               toast={toast}
             >
-              <FullToastContent Icon={Icon} stacked toast={toast} />
+              <FullToastContent Icon={Icon} stacked titleColor={titleColor} toast={toast} />
             </Toast.Root>
           )
         })}
@@ -214,6 +227,7 @@ function AnchoredToasts({
           const toastData = toast.data as ToastData | undefined
           const tooltipStyle = toastData?.tooltipStyle ?? false
           const anchor = toast.positionerProps?.anchor
+          const titleColor = toastData?.tone ? TONE_TITLE_COLORS[toastData.tone] : undefined
 
           if (!anchor?.isConnected) return null
 
@@ -245,7 +259,7 @@ function AnchoredToasts({
                     <Toast.Title data-slot="toast-title" />
                   </Toast.Content>
                 ) : (
-                  <FullToastContent Icon={Icon} toast={toast} />
+                  <FullToastContent Icon={Icon} titleColor={titleColor} toast={toast} />
                 )}
               </Toast.Root>
             </Toast.Positioner>

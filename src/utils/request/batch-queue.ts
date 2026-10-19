@@ -103,6 +103,11 @@ interface PendingBatch<T, R> {
   tasks: BatchTask<T, R>[]
   totalCharacters: number
   createdAt: number
+  // Set to createdAt and refreshed on every arrival. Min-count-dispatching
+  // queues time their compose window from this (rolling window, see
+  // batchReadyAtMs), so a paragraph trickle keeps one batch composing instead
+  // of shipping a fragment every window.
+  lastArrivalAtMs: number
 }
 
 export interface BatchExecutionMeta<TProvider = unknown> {
@@ -125,13 +130,19 @@ export interface BatchOptions<T, R, TProvider = unknown> {
   maxCharactersPerBatch: number
   maxItemsPerBatch: number
   /**
-   * Minimum items a batch must accumulate before it may dispatch: below it,
-   * the batch waits until its age reaches batchDelay and is force-flushed
-   * then. Whether REACHING the count short-circuits the rest of the window is
-   * `dispatchAtMinCount`'s call — with it, the batch flushes at the first near
-   * dispatch slot (immediately when the limiter is idle); without it (the
-   * default), a satisfied batch still composes until the window closes.
-   * Clamped to maxItemsPerBatch.
+   * Minimum items a batch must accumulate before it may dispatch. Whether
+   * REACHING the count short-circuits the window is `dispatchAtMinCount`'s
+   * call — with it, the batch flushes at the first near dispatch slot
+   * (immediately when the limiter is idle); without it (the default), a
+   * satisfied batch still composes until the window closes. Clamped to
+   * maxItemsPerBatch.
+   *
+   * While below the floor on a min-count-dispatching queue, the floor also
+   * outranks maxCharactersPerBatch: the batch keeps absorbing arrivals past
+   * the character cap (and the compose window rolls, see batchDelay), because
+   * honoring the cap first would make the floor unreachable — two large
+   * paragraphs already fill a small cap. The flushed batch may therefore
+   * exceed the character limit; the item count never does.
    */
   minItemsPerBatch?: number
   /**
@@ -140,6 +151,11 @@ export interface BatchOptions<T, R, TProvider = unknown> {
    * item's deadline preempts it). Doubles as the below-min force-flush delay
    * and the dispatch-gate tolerance (`etaMs <= batchDelay`). 0 = dispatch each
    * arrival on its own.
+   *
+   * On min-count-dispatching queues the window ROLLS: it closes batchDelay
+   * after the LATEST arrival, not the first, so a trickle of paragraphs keeps
+   * one batch composing — until the floor is reached or the arrivals stop —
+   * instead of shipping a small fragment every window. See batchReadyAtMs.
    */
   batchDelay: number
   /**
@@ -150,6 +166,8 @@ export interface BatchOptions<T, R, TProvider = unknown> {
    * what the subtitles queue needs: its window doubles as the burst-compose
    * window (a look-ahead tick's cues land back to back, and an idle gate would
    * otherwise flush each cue as its own request; deadlines preempt the window).
+   *
+   * Inert unless minItemsPerBatch is above 1 — see minCountDispatches().
    */
   dispatchAtMinCount?: boolean
   /**
@@ -335,15 +353,23 @@ export class BatchQueue<T, R, TProvider = unknown> {
     const gateHasSlot = etaMs <= this.batchDelay
     const batchesToFlush: string[] = []
     let nextWakeMs = Infinity
+    // Per-queue, not per-batch: whether reaching the minimum is a dispatch
+    // trigger at all (see minCountDispatches).
+    const minCountDispatches = this.minCountDispatches()
 
     for (const [batchKey, batch] of this.pendingBatchMap.entries()) {
+      const underMin = batch.tasks.length < this.effectiveMinItemsPerBatch()
+
       // Size-full: always flush — the batch's composition is already maximal.
-      if (this.shouldFlushBatch(batch)) {
+      // Exception: below the floor on a min-count-dispatching queue the size
+      // caps never flush. maxItems cannot trip (the floor is clamped to it),
+      // so this is the character cap — honoring it would cap the batch below
+      // the floor the user asked for (two ~1000-char paragraphs already fill
+      // a 2500-char cap) and minItemsPerBatch would never be reached.
+      if (this.shouldFlushBatch(batch) && !(minCountDispatches && underMin)) {
         batchesToFlush.push(batchKey)
         continue
       }
-
-      const underMin = batch.tasks.length < this.effectiveMinItemsPerBatch()
 
       // Min-count dispatch (dispatchAtMinCount queues): a batch that reached
       // minItemsPerBatch goes at the first near dispatch slot — immediately
@@ -351,7 +377,7 @@ export class BatchQueue<T, R, TProvider = unknown> {
       // "满足了再发": the window only bounds how long a below-min batch keeps
       // accumulating. While the gate is backed up the batch falls through and
       // keeps composing, so the slot is spent on the largest batch ready so far.
-      if (!underMin && this.dispatchAtMinCount && gateHasSlot) {
+      if (minCountDispatches && !underMin && gateHasSlot) {
         batchesToFlush.push(batchKey)
         continue
       }
@@ -384,7 +410,7 @@ export class BatchQueue<T, R, TProvider = unknown> {
       let wakeMs: number
       if (now >= readyAtMs) {
         wakeMs = Math.min(etaMs - this.batchDelay, MAX_GATE_POLL_MS)
-      } else if (holdForComposition || (!underMin && this.dispatchAtMinCount)) {
+      } else if (holdForComposition || (minCountDispatches && !underMin)) {
         wakeMs = Math.min(readyAtMs - now, Math.max(0, etaMs - this.batchDelay), MAX_GATE_POLL_MS)
       } else {
         // Still composing: wake when the window closes. A deadline closer than
@@ -415,9 +441,20 @@ export class BatchQueue<T, R, TProvider = unknown> {
     const existingBatch = this.pendingBatchMap.get(batchKey)
 
     if (existingBatch) {
-      if (existingBatch.totalCharacters + characters <= this.maxCharactersPerBatch) {
+      const underMin = existingBatch.tasks.length < this.effectiveMinItemsPerBatch()
+      // Below the floor on a min-count-dispatching queue the floor outranks
+      // the size caps (see schedule()): keep absorbing past maxCharacters so
+      // minItemsPerBatch stays reachable when paragraphs are large. The clamp
+      // keeps items below maxItemsPerBatch, so only the character cap can be
+      // exceeded here.
+      const floorBeatsCap = this.minCountDispatches() && underMin
+      const overCap =
+        existingBatch.tasks.length >= this.maxItemsPerBatch ||
+        existingBatch.totalCharacters + characters > this.maxCharactersPerBatch
+      if (floorBeatsCap || !overCap) {
         existingBatch.tasks.push(task)
         existingBatch.totalCharacters += characters
+        existingBatch.lastArrivalAtMs = Date.now()
       } else {
         this.flushPendingBatchByKey(batchKey)
         this.createNewPendingBatch(task, batchKey)
@@ -441,6 +478,21 @@ export class BatchQueue<T, R, TProvider = unknown> {
   }
 
   /**
+   * Whether reaching minItemsPerBatch is itself a dispatch trigger.
+   *
+   * A minimum of 1 is satisfied by the very first arrival, so treating it as a
+   * trigger dispatches every item on its own: the compose window never gets a
+   * second arrival to hold, and maxItemsPerBatch/maxCharactersPerBatch become
+   * unreachable. That is the shipped default for page translation, which
+   * turned "batch up to 4 paragraphs per request" into one request per
+   * paragraph. A minimum of 1 therefore means "no floor" — the window and the
+   * size caps decide — and only a floor above 1 short-circuits the window.
+   */
+  private minCountDispatches(): boolean {
+    return this.dispatchAtMinCount && this.effectiveMinItemsPerBatch() > 1
+  }
+
+  /**
    * The moment a batch stops composing: the batchDelay window closes, or —
    * when an item's deadline is closer — the deadline minus the round-trip
    * margin the batch needs to still land in time.
@@ -455,7 +507,14 @@ export class BatchQueue<T, R, TProvider = unknown> {
     now: number,
     holdForComposition: boolean,
   ): number {
-    const byWindow = batch.createdAt + this.batchDelay
+    // Min-count-dispatching queues run a ROLLING compose window: it closes
+    // batchDelay after the LATEST arrival, so a trickle keeps one batch
+    // composing (up to the floor / size caps) instead of shipping a small
+    // fragment every window. Every other queue — notably subtitles, whose
+    // window doubles as the burst-compose window — keeps the fixed age-based
+    // window from createdAt.
+    const windowAnchorMs = this.minCountDispatches() ? batch.lastArrivalAtMs : batch.createdAt
+    const byWindow = windowAnchorMs + this.batchDelay
     const dueDispatchMs = this.earliestDueDispatchMs(batchKey, batch)
 
     if (dueDispatchMs === null) {
@@ -524,12 +583,14 @@ export class BatchQueue<T, R, TProvider = unknown> {
 
   private createNewPendingBatch(task: BatchTask<T, R>, batchKey: string) {
     const batchId = getRandomUUID()
+    const now = Date.now()
 
     const pendingBatch: PendingBatch<T, R> = {
       id: batchId,
       tasks: [task],
       totalCharacters: this.getCharacters(task.data),
-      createdAt: Date.now(),
+      createdAt: now,
+      lastArrivalAtMs: now,
     }
 
     this.pendingBatchMap.set(batchKey, pendingBatch)

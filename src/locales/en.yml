@@ -781,13 +781,13 @@ options:
         title: Batch translation
         description: Configure character limits and maximum paragraph count for batch translation (only effective for LLM translation)
         maxCharactersPerBatch:
-          description: "Maximum characters: how much text one AI request carries"
+          description: "Maximum characters: how much text one AI request carries. Batches below the minimum paragraph count are not limited by it (they may exceed it)"
         maxItemsPerBatch:
           description: "Maximum paragraphs: how many paragraphs share one request. Providers that are not AI ignore both"
         minItemsPerBatch:
-          description: "Minimum paragraphs: a batch that reaches this count dispatches as soon as a request slot frees up; below it, the batch waits for the batching window and is sent with whatever it holds. Default 1 = one request per paragraph. Non-AI providers ignore this"
+          description: "Minimum paragraphs: a batch that reaches this count dispatches as soon as a request slot frees up, without waiting out the batching window; below it, the batch keeps merging — the window restarts on every arrival and the character limit does not split it — until no new paragraph has arrived for a whole window, then it is sent with whatever it holds. 1 = no minimum: the window then runs from the batch's first paragraph, and the window and the maximum paragraph count decide how much merges. Non-AI providers ignore this"
         batchDelay:
-          description: "Batching window in seconds: how long a batch stays open to accumulate more paragraphs before it is sent anyway. Default 0.1"
+          description: "Batching window in seconds: how long a batch stays open to accumulate more paragraphs. With a minimum paragraph count it is timed from the latest arrival — arrivals keep the batch open and it is sent only after the window closes with nothing new — otherwise from the batch's first paragraph. Default 0.1"
       preloadConfig:
         title: Pre-translate range
         description: Control how much content below the viewport gets pre-translated to save API costs

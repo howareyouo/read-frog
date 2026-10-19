@@ -1,4 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  DEFAULT_BATCH_DELAY_SECONDS,
+  DEFAULT_MAX_CHARACTER_PER_BATCH,
+  DEFAULT_MAX_ITEMS_PER_BATCH,
+  DEFAULT_MIN_ITEMS_PER_BATCH,
+} from "@/utils/constants/translate"
 import { BatchCountMismatchError, BatchQueue } from "./batch-queue"
 
 describe("BatchQueue minItemsPerBatch gating", () => {
@@ -116,6 +122,80 @@ describe("BatchQueue minItemsPerBatch gating", () => {
     expect(await promise).toBe("a")
   })
 
+  it("keeps merging past the character cap until minItemsPerBatch is reached", async () => {
+    // The floor outranks the cap: two ~80-char paragraphs already overflow a
+    // 100-char batch, and honoring the cap would make minItemsPerBatch=3
+    // unreachable — the "never merges more than 2 paragraphs" report. The
+    // batch absorbs arrivals past the cap and goes out as ONE request —
+    // larger than the cap — the moment the floor is reached.
+    const { queue, executed } = createQueue({
+      minItemsPerBatch: 3,
+      maxCharactersPerBatch: 100,
+      dispatchAtMinCount: true,
+    })
+    const texts = ["x".repeat(80), "y".repeat(80), "z".repeat(80)]
+    const promises = texts.map((text) => queue.enqueue(text))
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(executed).toEqual([texts])
+    expect(await Promise.all(promises)).toEqual(texts)
+  })
+
+  it("runs a rolling window: a trickle keeps the below-min batch composing until the floor is reached", async () => {
+    // Paragraphs landing 90ms apart with a 100ms window: a createdAt-anchored
+    // window would flush ["a"] at t=100 and never merge anything. Rolling
+    // from the latest arrival, the batch only goes once the floor (5) is
+    // reached.
+    const { queue, executed } = createQueue({
+      minItemsPerBatch: 5,
+      dispatchAtMinCount: true,
+    })
+    const texts = ["a", "b", "c", "d", "e"]
+    const promises: Promise<string>[] = []
+    for (const text of texts) {
+      promises.push(queue.enqueue(text))
+      await vi.advanceTimersByTimeAsync(90)
+    }
+
+    expect(executed).toEqual([texts])
+    expect(await Promise.all(promises)).toEqual(texts)
+  })
+
+  it("sends the below-min tail once no arrival has landed for a whole window", async () => {
+    const { queue, executed } = createQueue({
+      minItemsPerBatch: 5,
+      dispatchAtMinCount: true,
+    })
+    const promiseA = queue.enqueue("a")
+    await vi.advanceTimersByTimeAsync(90)
+    const promiseB = queue.enqueue("b")
+
+    // Each arrival restarts the window (90 + 100 = 190), so the batch stays
+    // open past its first window.
+    await vi.advanceTimersByTimeAsync(99)
+    expect(executed).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(executed).toEqual([["a", "b"]])
+    expect(await Promise.all([promiseA, promiseB])).toEqual(["a", "b"])
+  })
+
+  it("still splits a below-min batch at the character cap without dispatchAtMinCount", async () => {
+    // Subtitles keep the strict cap: their window is the burst-compose window
+    // and an oversized request there buys nothing.
+    const { queue, executed } = createQueue({
+      minItemsPerBatch: 3,
+      maxCharactersPerBatch: 100,
+    })
+    const longX = "x".repeat(80)
+    const promise = queue.enqueue(longX)
+    queue.enqueue("y".repeat(80))
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(executed).toEqual([[longX]])
+    expect(await promise).toBe(longX)
+  })
+
   it("sends a satisfied batch at the first near slot instead of waiting out the window", async () => {
     let etaMs = 10_000
     const { queue, executed } = createQueue({
@@ -139,13 +219,49 @@ describe("BatchQueue minItemsPerBatch gating", () => {
     expect(await Promise.all(promises)).toEqual(["a", "b"])
   })
 
-  it("dispatches each arrival on its own when dispatchAtMinCount is set and minItemsPerBatch is left at 1", async () => {
+  it("keeps merging a burst when dispatchAtMinCount is set and minItemsPerBatch is left at 1", async () => {
+    // A minimum of 1 is met by the FIRST arrival. If that counted as the
+    // dispatch trigger, every item would go on its own and the window plus
+    // maxItemsPerBatch would never merge anything — which is exactly what the
+    // shipped page-translation default did (one request per paragraph). A
+    // minimum of 1 means "no floor": the window decides.
     const { queue, executed } = createQueue({ dispatchAtMinCount: true })
     const promises = [queue.enqueue("a"), queue.enqueue("b")]
 
-    await vi.advanceTimersByTimeAsync(0)
-    expect(executed).toEqual([["a"], ["b"]])
+    await vi.advanceTimersByTimeAsync(99)
+    expect(executed).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(executed).toEqual([["a", "b"]])
     expect(await Promise.all(promises)).toEqual(["a", "b"])
+  })
+
+  it("merges paragraphs into maxItemsPerBatch requests under the shipped page-translation defaults", async () => {
+    // The queue as the background actually builds it: default min (1), default
+    // max items, default window — plus dispatchAtMinCount, which the webpage
+    // queue always sets. Six paragraphs landing together must cost two
+    // requests, not six.
+    const { queue, executed } = createQueue({
+      minItemsPerBatch: DEFAULT_MIN_ITEMS_PER_BATCH,
+      maxItemsPerBatch: DEFAULT_MAX_ITEMS_PER_BATCH,
+      maxCharactersPerBatch: DEFAULT_MAX_CHARACTER_PER_BATCH,
+      batchDelay: DEFAULT_BATCH_DELAY_SECONDS * 1000,
+      dispatchAtMinCount: true,
+    })
+    const texts = ["a", "b", "c", "d", "e", "f"]
+    const promises = texts.map((text) => queue.enqueue(text))
+
+    // The fourth arrival fills the batch, so it goes at once; the rest keep
+    // composing until the window closes.
+    await vi.advanceTimersByTimeAsync(0)
+    expect(executed).toEqual([["a", "b", "c", "d"]])
+
+    await vi.advanceTimersByTimeAsync(DEFAULT_BATCH_DELAY_SECONDS * 1000)
+    expect(executed).toEqual([
+      ["a", "b", "c", "d"],
+      ["e", "f"],
+    ])
+    expect(await Promise.all(promises)).toEqual(texts)
   })
 
   it("dispatches each arrival on its own when batchDelay is 0", async () => {
