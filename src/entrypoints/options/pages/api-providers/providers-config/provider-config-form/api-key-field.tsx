@@ -1,7 +1,7 @@
 import { IconPlus, IconX } from "@tabler/icons-react"
 import { useSelector } from "@tanstack/react-store"
 import { useAtom } from "jotai"
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { useDebouncedSubmit } from "@/components/form/use-debounced-submit"
 import {
   AlertDialog,
@@ -24,7 +24,13 @@ import { ConnectionTestButton } from "./components/connection-button"
 import { GetAPIKeyButton } from "./components/get-api-key-button"
 import { withForm } from "./form"
 
-const KEY_ROW_CLASS = "grid grid-cols-[minmax(0,1fr)_auto_1.5rem] items-center gap-1.5"
+/**
+ * All key rows (primary + extras) share ONE grid so the connect-button column
+ * is sized once for every row: a row in the wider 配置中 state narrows all
+ * inputs equally instead of only its own, keeping the inputs the same width.
+ */
+const KEY_ROWS_GRID_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_auto_1.5rem] items-center gap-x-1.5 gap-y-2"
 
 /** Sentinel for the primary key row in the remove-key dialog state. */
 const PRIMARY_KEY = -1
@@ -85,18 +91,14 @@ export const APIKeyField = withForm({
 
     return (
       <div className="flex flex-col gap-2">
-        <form.AppField name="apiKey">
-          {(field) => (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm leading-none font-medium">API Key</span>
-                <GetAPIKeyButton providerType={providerConfig.provider} />
-              </div>
-              <div
-                className={
-                  isLLMProviderConfig(providerConfig) ? KEY_ROW_CLASS : "flex items-center gap-1.5"
-                }
-              >
+        <div className="flex items-center gap-2">
+          <span className="text-sm leading-none font-medium">API Key</span>
+          <GetAPIKeyButton providerType={providerConfig.provider} />
+        </div>
+        <div className={KEY_ROWS_GRID_CLASS}>
+          <form.AppField name="apiKey">
+            {(field) => (
+              <>
                 <APIKeyInput
                   value={field.state.value ?? ""}
                   onChange={(value) => {
@@ -120,106 +122,106 @@ export const APIKeyField = withForm({
                     <IconX className="size-3.5" />
                   </Button>
                 )}
-              </div>
-            </div>
-          )}
-        </form.AppField>
-        {isLLMProviderConfig(providerConfig) && (
-          <form.Field name="apiKeys">
-            {(apiKeysField) => {
-              const apiKeys = apiKeysField.state.value ?? []
+              </>
+            )}
+          </form.AppField>
+          {isLLMProviderConfig(providerConfig) && (
+            <form.Field name="apiKeys">
+              {(apiKeysField) => {
+                const apiKeys = apiKeysField.state.value ?? []
 
-              const setKey = (index: number, value: string) => {
-                const next = [...apiKeys]
-                next[index] = value
-                apiKeysField.handleChange(next)
-                debouncedSubmit()
-              }
-
-              // Removing the primary key promotes the first extra key into it.
-              const confirmRemoveKey = () => {
-                if (keyToRemove === PRIMARY_KEY) {
-                  form.setFieldValue("apiKey", apiKeys[0] ?? "")
-                  apiKeysField.handleChange(apiKeys.slice(1))
-                } else if (keyToRemove !== null) {
-                  apiKeysField.handleChange(apiKeys.filter((_, i) => i !== keyToRemove))
+                const setKey = (index: number, value: string) => {
+                  const next = [...apiKeys]
+                  next[index] = value
+                  apiKeysField.handleChange(next)
+                  debouncedSubmit()
                 }
-                setKeyToRemove(null)
-                debouncedSubmit()
-              }
 
-              return (
-                <div className="flex flex-col gap-2">
-                  {apiKeys.map((apiKey, index) => (
-                    <div key={index} className={KEY_ROW_CLASS}>
-                      <APIKeyInput
-                        value={apiKey}
-                        onChange={(value) => setKey(index, value)}
-                        ariaLabel={i18n.t("options.apiProviders.apiKey.additionalKeys")}
-                        isHighlighted={isHighlighted}
-                      />
-                      <ConnectionTestButton providerConfig={{ ...providerConfig, apiKey }} />
-                      {canRemoveKey && (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon-xs"
-                          aria-label={i18n.t("options.apiProviders.apiKey.removeKey")}
-                          onClick={() => setKeyToRemove(index)}
-                        >
-                          <IconX className="size-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <AlertDialog
-                    open={keyToRemove !== null}
-                    onOpenChange={(open) => {
-                      if (!open) setKeyToRemove(null)
-                    }}
-                  >
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          {i18n.t("options.apiProviders.apiKey.removeKeyDialog.title")}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {i18n.t("options.apiProviders.apiKey.removeKeyDialog.description")}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>
-                          {i18n.t("options.apiProviders.apiKey.removeKeyDialog.cancel")}
-                        </AlertDialogCancel>
-                        <AlertDialogAction variant="destructive" onClick={confirmRemoveKey}>
-                          {i18n.t("options.apiProviders.apiKey.removeKeyDialog.confirm")}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      className="w-fit"
-                      onClick={() => {
-                        apiKeysField.handleChange([...apiKeys, ""])
-                        debouncedSubmit()
+                // Removing the primary key promotes the first extra key into it.
+                const confirmRemoveKey = () => {
+                  if (keyToRemove === PRIMARY_KEY) {
+                    form.setFieldValue("apiKey", apiKeys[0] ?? "")
+                    apiKeysField.handleChange(apiKeys.slice(1))
+                  } else if (keyToRemove !== null) {
+                    apiKeysField.handleChange(apiKeys.filter((_, i) => i !== keyToRemove))
+                  }
+                  setKeyToRemove(null)
+                  debouncedSubmit()
+                }
+
+                return (
+                  <>
+                    {apiKeys.map((apiKey, index) => (
+                      <Fragment key={index}>
+                        <APIKeyInput
+                          value={apiKey}
+                          onChange={(value) => setKey(index, value)}
+                          ariaLabel={i18n.t("options.apiProviders.apiKey.additionalKeys")}
+                          isHighlighted={isHighlighted}
+                        />
+                        <ConnectionTestButton providerConfig={{ ...providerConfig, apiKey }} />
+                        {canRemoveKey && (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon-xs"
+                            aria-label={i18n.t("options.apiProviders.apiKey.removeKey")}
+                            onClick={() => setKeyToRemove(index)}
+                          >
+                            <IconX className="size-3.5" />
+                          </Button>
+                        )}
+                      </Fragment>
+                    ))}
+                    <AlertDialog
+                      open={keyToRemove !== null}
+                      onOpenChange={(open) => {
+                        if (!open) setKeyToRemove(null)
                       }}
                     >
-                      <IconPlus className="size-3.5" />
-                      {i18n.t("options.apiProviders.apiKey.addKey")}
-                    </Button>
-                    <span className="text-xs text-muted-foreground">
-                      {i18n.t("options.apiProviders.apiKey.additionalKeysHint")}
-                    </span>
-                  </div>
-                </div>
-              )
-            }}
-          </form.Field>
-        )}
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            {i18n.t("options.apiProviders.apiKey.removeKeyDialog.title")}
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {i18n.t("options.apiProviders.apiKey.removeKeyDialog.description")}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>
+                            {i18n.t("options.apiProviders.apiKey.removeKeyDialog.cancel")}
+                          </AlertDialogCancel>
+                          <AlertDialogAction variant="destructive" onClick={confirmRemoveKey}>
+                            {i18n.t("options.apiProviders.apiKey.removeKeyDialog.confirm")}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    <div className="col-span-3 flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="w-fit"
+                        onClick={() => {
+                          apiKeysField.handleChange([...apiKeys, ""])
+                          debouncedSubmit()
+                        }}
+                      >
+                        <IconPlus className="size-3.5" />
+                        {i18n.t("options.apiProviders.apiKey.addKey")}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {i18n.t("options.apiProviders.apiKey.additionalKeysHint")}
+                      </span>
+                    </div>
+                  </>
+                )
+              }}
+            </form.Field>
+          )}
+        </div>
       </div>
     )
   },
