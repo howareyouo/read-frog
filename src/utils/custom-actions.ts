@@ -20,12 +20,12 @@ export function getBuiltInDictionaryAction(
 
   const state = selectionToolbar.builtInActions?.dictionary ?? {
     enabled: definition.enabled !== false,
-    providerId: definition.providerId,
+    provider: definition.provider,
   }
   return {
     ...definition,
     enabled: state.enabled,
-    providerId: state.providerId,
+    provider: state.provider,
   }
 }
 
@@ -50,7 +50,7 @@ function toBuiltInDictionaryState(
 ): SelectionToolbarBuiltInActionState {
   return {
     enabled: action.enabled !== false,
-    providerId: action.providerId,
+    provider: action.provider,
   }
 }
 
@@ -79,7 +79,7 @@ export function replaceSelectionToolbarAction(
 export function patchSelectionToolbarAction(
   selectionToolbar: SelectionToolbarConfig,
   actionId: string,
-  patch: Partial<Pick<SelectionToolbarCustomAction, "enabled" | "providerId">>,
+  patch: Partial<Pick<SelectionToolbarCustomAction, "enabled" | "provider">>,
 ): SelectionToolbarConfig {
   const action = findSelectionToolbarAction(selectionToolbar, actionId)
   if (!action) {

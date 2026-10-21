@@ -1,10 +1,5 @@
-import {
-  isModifierKey } from "@tanstack/hotkeys"
-import { useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
+import { isModifierKey } from "@tanstack/hotkeys"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/base-ui/input"
 import { i18n } from "@/utils/i18n"
 import {

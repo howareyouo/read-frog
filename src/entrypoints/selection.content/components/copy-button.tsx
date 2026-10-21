@@ -1,11 +1,5 @@
-import {
-  IconCheck,
-  IconCopy } from "@tabler/icons-react"
-import { useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
+import { IconCheck, IconCopy } from "@tabler/icons-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { buttonVariants } from "@/components/ui/base-ui/button"
 import { i18n } from "@/utils/i18n"
 import { cn } from "@/utils/styles/utils"

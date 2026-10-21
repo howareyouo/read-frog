@@ -66,9 +66,7 @@ export const APIKeyField = withForm({
     // blank rows are skipped by the rotation when it collects the key list.
     const debouncedSubmit = useDebouncedSubmit(form)
     const [keyToRemove, setKeyToRemove] = useState<number | null>(null)
-    const apiKeys = isLLMProviderConfig(providerConfig)
-      ? (providerConfig.apiKeys ?? [])
-      : []
+    const apiKeys = isLLMProviderConfig(providerConfig) ? (providerConfig.apiKeys ?? []) : []
     // The last remaining key cannot be deleted: deleting the primary key
     // promotes the first extra key into its place, so the remove buttons are
     // hidden entirely once only the primary key is left.
@@ -94,7 +92,11 @@ export const APIKeyField = withForm({
                 <span className="text-sm leading-none font-medium">API Key</span>
                 <GetAPIKeyButton providerType={providerConfig.provider} />
               </div>
-              <div className={isLLMProviderConfig(providerConfig) ? KEY_ROW_CLASS : "flex items-center gap-1.5"}>
+              <div
+                className={
+                  isLLMProviderConfig(providerConfig) ? KEY_ROW_CLASS : "flex items-center gap-1.5"
+                }
+              >
                 <APIKeyInput
                   value={field.state.value ?? ""}
                   onChange={(value) => {
@@ -189,10 +191,7 @@ export const APIKeyField = withForm({
                         <AlertDialogCancel>
                           {i18n.t("options.apiProviders.apiKey.removeKeyDialog.cancel")}
                         </AlertDialogCancel>
-                        <AlertDialogAction
-                          variant="destructive"
-                          onClick={confirmRemoveKey}
-                        >
+                        <AlertDialogAction variant="destructive" onClick={confirmRemoveKey}>
                           {i18n.t("options.apiProviders.apiKey.removeKeyDialog.confirm")}
                         </AlertDialogAction>
                       </AlertDialogFooter>

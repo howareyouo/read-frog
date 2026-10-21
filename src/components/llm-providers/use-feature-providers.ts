@@ -6,7 +6,7 @@ import { configAtom, configFieldsAtomMap, writeConfigAtom } from "@/utils/atoms/
 import { getProviderConfigById } from "@/utils/config/helpers"
 import type { FeatureKey } from "@/utils/constants/feature-providers"
 import {
-  buildFeatureProviderIdsPatch,
+  buildFeatureProvidersPatch,
   FEATURE_PROVIDER_DEFS,
 } from "@/utils/constants/feature-providers"
 import { getSelectionToolbarActions, patchSelectionToolbarAction } from "@/utils/custom-actions"
@@ -15,13 +15,13 @@ import { getSelectableProvidersForCapability } from "@/utils/providers/provider-
 import { providerSupportsTranslationOnlyMode } from "@/utils/providers/translation-only-gate"
 
 export interface FeatureProviderBinding {
-  providers: ProviderSelectorOption[]
-  /** The primary provider — first of `providerIds`. */
-  providerId: string
-  providerIds: string[]
+  providerOptions: ProviderSelectorOption[]
+  /** The primary provider — first of `providers`. */
+  provider: string
+  providers: string[]
   providerConfig: ProviderConfig | null
-  setProviderId: (providerId: string) => void
-  setProviderIds: (providerIds: string[]) => void
+  setProvider: (provider: string) => void
+  setProviders: (providers: string[]) => void
 }
 
 /** Reads and writes the provider a built-in feature runs on, independent of how it is laid out. */
@@ -30,8 +30,8 @@ export function useFeatureProvider(featureKey: FeatureKey): FeatureProviderBindi
   const setConfig = useSetAtom(writeConfigAtom)
   const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
   const translationMode = useAtomValue(configFieldsAtomMap.pageTranslation).mode
-  const providerIds = FEATURE_PROVIDER_DEFS[featureKey].getProviderIds(config)
-  const providerId = providerIds[0] ?? ""
+  const providers = FEATURE_PROVIDER_DEFS[featureKey].getProviders(config)
+  const provider = providers[0] ?? ""
 
   // Page translate in translationOnly mode cannot run on providers without
   // markup support (see translation-only-gate.ts) — hide them so the blocked
@@ -39,7 +39,7 @@ export function useFeatureProvider(featureKey: FeatureKey): FeatureProviderBindi
   // the full list.
   const hideTranslationOnlyUnsupported =
     featureKey === "pageTranslation" && translationMode === "translationOnly"
-  const providers = useMemo(() => {
+  const providerOptions = useMemo(() => {
     const candidates = getSelectableProvidersForCapability(featureKey, providersConfig)
     if (!hideTranslationOnlyUnsupported) {
       return candidates
@@ -47,34 +47,34 @@ export function useFeatureProvider(featureKey: FeatureKey): FeatureProviderBindi
     return candidates.filter((option) => providerSupportsTranslationOnlyMode(option.provider))
   }, [featureKey, providersConfig, hideTranslationOnlyUnsupported])
 
-  const setProviderId = useCallback(
-    (id: string) => void setConfig(buildFeatureProviderIdsPatch({ [featureKey]: [id] })),
+  const setProvider = useCallback(
+    (id: string) => void setConfig(buildFeatureProvidersPatch({ [featureKey]: [id] })),
     [featureKey, setConfig],
   )
 
-  const setProviderIds = useCallback(
+  const setProviders = useCallback(
     (ids: string[]) => {
-      void setConfig(buildFeatureProviderIdsPatch({ [featureKey]: ids }))
+      void setConfig(buildFeatureProvidersPatch({ [featureKey]: ids }))
     },
     [featureKey, setConfig],
   )
 
   return {
+    providerOptions,
+    provider,
     providers,
-    providerId,
-    providerIds,
-    providerConfig: getProviderConfigById(providersConfig, providerId) ?? null,
-    setProviderId,
-    setProviderIds,
+    providerConfig: getProviderConfigById(providersConfig, provider) ?? null,
+    setProvider,
+    setProviders,
   }
 }
 
 export interface CustomActionProvidersBinding {
   /** Only the actions the user can actually trigger, so disabled ones stay out of the UI. */
   actions: SelectionToolbarCustomAction[]
-  providers: ProviderSelectorOption[]
+  providerOptions: ProviderSelectorOption[]
   getProviderConfig: (action: SelectionToolbarCustomAction) => ProviderConfig | null
-  setActionProviderId: (actionId: string, providerId: string) => void
+  setActionProvider: (actionId: string, provider: string) => void
 }
 
 /** Same as `useFeatureProvider`, for the custom AI actions in the selection toolbar. */
@@ -83,7 +83,7 @@ export function useCustomActionProviders(): CustomActionProvidersBinding {
   const setConfig = useSetAtom(writeConfigAtom)
   const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
 
-  const providers = useMemo(
+  const providerOptions = useMemo(
     () => getSelectableProvidersForCapability("customAction", providersConfig),
     [providersConfig],
   )
@@ -96,11 +96,11 @@ export function useCustomActionProviders(): CustomActionProvidersBinding {
     [config.selectionToolbar],
   )
 
-  const setActionProviderId = useCallback(
-    (actionId: string, providerId: string) =>
+  const setActionProvider = useCallback(
+    (actionId: string, provider: string) =>
       void setConfig({
         selectionToolbar: patchSelectionToolbarAction(config.selectionToolbar, actionId, {
-          providerId,
+          provider,
         }),
       }),
     [config.selectionToolbar, setConfig],
@@ -108,9 +108,9 @@ export function useCustomActionProviders(): CustomActionProvidersBinding {
 
   const getProviderConfig = useCallback(
     (action: SelectionToolbarCustomAction) =>
-      getProviderConfigById(providersConfig, action.providerId) ?? null,
+      getProviderConfigById(providersConfig, action.provider) ?? null,
     [providersConfig],
   )
 
-  return { actions, providers, getProviderConfig, setActionProviderId }
+  return { actions, providerOptions, getProviderConfig, setActionProvider }
 }

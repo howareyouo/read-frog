@@ -115,9 +115,7 @@ function ConnectModelButton({
     return (
       <Button type="button" size="xs" variant="brand" className="gap-2" disabled>
         <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-white" />
-        <span className="text-xs">
-          {i18n.t("options.apiProviders.testConnection.configuring")}
-        </span>
+        <span className="text-xs">{i18n.t("options.apiProviders.testConnection.configuring")}</span>
       </Button>
     )
   }

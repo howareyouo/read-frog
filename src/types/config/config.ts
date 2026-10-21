@@ -28,7 +28,7 @@ const languageSchema = z.object({
 
 const selectionToolbarFeatureSchema = z.object({
   enabled: z.boolean(),
-  providerIds: z.array(z.string()).default([]),
+  providers: z.array(z.string()).default([]),
   shortcut: pageTranslationShortcutSchema,
 })
 
@@ -64,7 +64,7 @@ const inputTranslationLangSchema = z.union([
 // input translation schema (triple-space trigger)
 const inputTranslationSchema = z.object({
   enabled: z.boolean(),
-  providerIds: z.array(z.string()).default([]),
+  providers: z.array(z.string()).default([]),
   fromLang: inputTranslationLangSchema,
   toLang: inputTranslationLangSchema,
   enableCycle: z.boolean(),
@@ -113,7 +113,7 @@ export const configSchema = z
       // Every selected id must be a usable provider for the feature; ids the
       // user removes from providersConfig are pruned by the UI, but a stale id
       // could otherwise silently survive in the rotation.
-      def.getProviderIds(data).forEach((providerId, index) => {
+      def.getProviders(data).forEach((providerId, index) => {
         if (
           !doesProviderSupportsCapability(featureKey, data.providersConfig, providerId, {
             requireEnable: true,
@@ -125,20 +125,20 @@ export const configSchema = z
               requireEnable: true,
             }),
             message: `Invalid provider id "${providerId}".`,
-            path: [...def.providerIdsConfigPath, index],
+            path: [...def.providersPath, index],
           })
         }
       })
     }
 
-    // Validate languageDetection: when mode is "llm", providerId must be a valid enabled LLM provider
+    // Validate languageDetection: when mode is "llm", provider must be a valid enabled LLM provider
     if (data.languageDetection.mode === "llm") {
-      const ldProviderId = data.languageDetection.providerId
+      const ldProviderId = data.languageDetection.provider
       if (!ldProviderId) {
         ctx.addIssue({
           code: "custom",
-          message: `Language detection mode is "llm" but no providerId is configured.`,
-          path: ["languageDetection", "providerId"],
+          message: `Language detection mode is "llm" but no provider is configured.`,
+          path: ["languageDetection", "provider"],
         })
       } else if (
         // Capability-based, like the FEATURE_KEYS loop above, rather than a
@@ -155,19 +155,19 @@ export const configSchema = z
             requireEnable: true,
           }),
           message: `Invalid provider id "${ldProviderId}".`,
-          path: ["languageDetection", "providerId"],
+          path: ["languageDetection", "provider"],
         })
       }
     }
 
     const actionProviderEntries = [
       {
-        providerId: data.selectionToolbar.builtInActions.dictionary.providerId,
-        path: ["selectionToolbar", "builtInActions", "dictionary", "providerId"] as const,
+        providerId: data.selectionToolbar.builtInActions.dictionary.provider,
+        path: ["selectionToolbar", "builtInActions", "dictionary", "provider"] as const,
       },
       ...data.selectionToolbar.customActions.map((action, index) => ({
-        providerId: action.providerId,
-        path: ["selectionToolbar", "customActions", index, "providerId"] as const,
+        providerId: action.provider,
+        path: ["selectionToolbar", "customActions", index, "provider"] as const,
       })),
     ]
 

@@ -125,9 +125,7 @@ function isFullRuntimeAutoInjectUrl(url: string | undefined): url is string {
   )
 }
 
-function getIframeContentScriptFiles(
-  includeSelectionContent: boolean,
-): IframeContentScriptFile[] {
+function getIframeContentScriptFiles(includeSelectionContent: boolean): IframeContentScriptFile[] {
   // Selection is its own content script file: full-runtime frames get host.js
   // AND selection.js, translation-only frames host.js only. Whether selection
   // runs is decided by which files are injected, not by a window flag.

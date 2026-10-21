@@ -1,6 +1,6 @@
 import type { Config } from "@/types/config/config"
 import { getProviderConfigById } from "@/utils/config/helpers"
-import { getFeatureProviderIds } from "@/utils/constants/feature-providers"
+import { getFeatureProviders } from "@/utils/constants/feature-providers"
 
 /**
  * Microsoft's unauthenticated translate endpoint has no markup-preserving
@@ -19,7 +19,7 @@ export function providerSupportsTranslationOnlyMode(provider: string): boolean {
 export function canEnterTranslationOnlyMode(config: Config): boolean {
   // Rotation sends requests through every selected provider, so all of them —
   // not just the primary — must preserve markup for translationOnly to be safe.
-  return getFeatureProviderIds(config, "pageTranslation").every((providerId) => {
+  return getFeatureProviders(config, "pageTranslation").every((providerId) => {
     const providerConfig = getProviderConfigById(config.providersConfig, providerId)
     return providerConfig == null || providerSupportsTranslationOnlyMode(providerConfig.provider)
   })

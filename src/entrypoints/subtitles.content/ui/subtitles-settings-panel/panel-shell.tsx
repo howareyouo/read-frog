@@ -1,9 +1,5 @@
-import {
-  IconChevronLeft } from "@tabler/icons-react"
-import { Activity,
-  useMemo,
-  useRef,
-} from "react"
+import { IconChevronLeft } from "@tabler/icons-react"
+import { Activity, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/base-ui/button"
 import { cn } from "@/utils/styles/utils"
 import { useSubtitlesUI } from "../subtitles-ui-context"

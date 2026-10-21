@@ -145,7 +145,7 @@ export async function resolveSubtitlesProviderRef(
   const resolved = resolveProviderRefForCapability(
     "videoSubtitles",
     config.providersConfig,
-    config.videoSubtitles.providerIds[0] ?? "",
+    config.videoSubtitles.providers[0] ?? "",
   )
   if (!resolved) {
     return null
@@ -157,7 +157,7 @@ export async function resolveSubtitlesProviderRef(
  * The next AI-segmentation provider in the feature's rotation.
  *
  * Callers used to hand segmentation the primary ref above, which reads
- * `videoSubtitles.providerIds[0]` — so every chunk of every video was cut by the
+ * `videoSubtitles.providers[0]` — so every chunk of every video was cut by the
  * one interface at the top of the list while the other keys sat idle, and a
  * pure-translate primary (Microsoft / Google / DeepLX) was handed a prompt it
  * cannot answer. Segmentation is a generation, so it takes the same selection
@@ -224,8 +224,10 @@ export async function translateSubtitles(
   }
 
   // No usable provider for the feature (disabled or capability mismatch).
+  // Thrown, not silently blanked: an empty translation is indistinguishable
+  // from "original only" and nothing else in the pipeline surfaces this state.
   if (!hasUsableFeatureProvider(config, "videoSubtitles")) {
-    return fragments.map((f) => ({ ...f, translation: "" }))
+    throw new Error(i18n.t("subtitles.errors.noProviderSelected"))
   }
 
   const langConfig = config.language

@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { Config } from "@/types/config/config"
-import {
-  clearProviderCooldown,
-  markProviderCoolingDown,
-} from "@/utils/providers/provider-cooldown"
+import { clearProviderCooldown, markProviderCoolingDown } from "@/utils/providers/provider-cooldown"
 import {
   getFeatureProviderSetCacheIdentity,
   getUsableLLMFeatureProviderIds,
@@ -12,17 +9,19 @@ import {
   resolveRotatingProviderRefForFeature,
 } from "./feature-provider-resolver"
 
-// The helpers only read `videoSubtitles.providerIds`, `providersConfig[].id`,
+// The helpers only read `videoSubtitles.providers`, `providersConfig[].id`,
 // `.enabled` and `.provider` — a structural fixture cast to Config keeps the
 // test focused on selection logic instead of the full config schema. Extra
 // keys (e.g. apiKey) are allowed so cache-identity tests can simulate edits.
 function makeConfig(
-  providerIds: string[],
-  providers: Array<{ id: string; enabled: boolean; provider: string } & Record<string, unknown>>,
+  providers: string[],
+  providerConfigs: Array<
+    { id: string; enabled: boolean; provider: string } & Record<string, unknown>
+  >,
 ): Config {
   return {
-    videoSubtitles: { providerIds },
-    providersConfig: providers,
+    videoSubtitles: { providers },
+    providersConfig: providerConfigs,
   } as unknown as Config
 }
 

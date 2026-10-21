@@ -30,7 +30,7 @@ export const ProviderField = withForm({
 
     return (
       <form.AppField
-        name="providerId"
+        name="provider"
         validators={{
           onChange: ({ value }) => {
             if (!customActionProviderIds.includes(value)) {

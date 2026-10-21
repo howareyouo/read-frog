@@ -5,7 +5,7 @@ import { configAtom, configFieldsAtomMap } from "@/utils/atoms/config"
 import type { FeatureKey } from "@/utils/constants/feature-providers"
 import {
   getFeatureLabelI18nKey,
-  getPrimaryFeatureProviderId,
+  getPrimaryFeatureProvider,
   resolveProviderConfigOrNull,
 } from "@/utils/constants/feature-providers"
 import { i18n } from "@/utils/i18n"
@@ -71,7 +71,7 @@ function useFeatureStatuses(): FeatureLine[] {
         ) {
           // A provider row deleted out of providersConfig leaves its id behind; name that instead.
           const primary = resolveProviderConfigOrNull(config, featureKey)
-          const primaryName = primary?.name ?? getPrimaryFeatureProviderId(config, featureKey)
+          const primaryName = primary?.name ?? getPrimaryFeatureProvider(config, featureKey)
           return {
             featureKey,
             status: "notFirst" as const,

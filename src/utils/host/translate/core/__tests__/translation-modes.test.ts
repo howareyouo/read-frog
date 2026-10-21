@@ -69,7 +69,7 @@ function makeConfig(): Config {
     ],
     pageTranslation: {
       ...DEFAULT_CONFIG.pageTranslation,
-      providerIds: ["microsoft"],
+      providers: ["microsoft"],
       enableTargetLanguageSkip: false,
     },
   } as unknown as Config
@@ -209,9 +209,7 @@ describe("translateNodesBilingualMode", () => {
     expect(p.querySelector(`.${CONTENT_WRAPPER_CLASS}`)).toBe(wrapper)
     expect(wrapper.textContent).toBe("SITE-REWRITE-FINAL")
     expect(h.sentTexts).toHaveLength(MAX_WRAPPER_TAMPER_REPAIRS + 1)
-    expect(getBilingualTranslationStateForSource(p)?.wrapperTextContent).toBe(
-      "SITE-REWRITE-FINAL",
-    )
+    expect(getBilingualTranslationStateForSource(p)?.wrapperTextContent).toBe("SITE-REWRITE-FINAL")
   })
 
   it("lets a concurrent second walk take over with exactly one provider request", async () => {
@@ -356,9 +354,7 @@ describe("translateNodeTranslationOnlyMode", () => {
     await flushBatch()
 
     expect(h.sentTexts).toEqual(["First paragraph text", "Second paragraph text"])
-    expect(div.textContent).toBe(
-      `译文(First paragraph text)\n\n译文(Second paragraph text)`,
-    )
+    expect(div.textContent).toBe(`译文(First paragraph text)\n\n译文(Second paragraph text)`)
     expect(div.childNodes).toHaveLength(3)
     expect(div.hasAttribute(TRANSLATION_ONLY_ATTRIBUTE)).toBe(true)
     // Each unit keeps its own restore record on the shared container anchor —

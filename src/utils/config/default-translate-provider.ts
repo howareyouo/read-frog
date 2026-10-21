@@ -1,6 +1,6 @@
 import type { FeatureKey } from "@/utils/constants/feature-providers"
 import {
-  buildFeatureProviderIdsPatch,
+  buildFeatureProvidersPatch,
   FEATURE_KEYS,
   FEATURE_PROVIDER_DEFS,
 } from "@/utils/constants/feature-providers"
@@ -34,22 +34,20 @@ export async function selectFreshTranslateProviders(): Promise<void> {
 async function promoteMicrosoftDefaultsToGoogle(): Promise<void> {
   const { value: config } = await getLocalConfigAndMeta()
 
-  const assignmentsIds: Partial<Record<FeatureKey, string[]>> = {}
+  const assignments: Partial<Record<FeatureKey, string[]>> = {}
   for (const featureKey of FEATURE_KEYS) {
-    const providerIds = FEATURE_PROVIDER_DEFS[featureKey].getProviderIds(config)
+    const providers = FEATURE_PROVIDER_DEFS[featureKey].getProviders(config)
     // Rotation may hold Microsoft even when the primary has moved on —
     // rewrite it wherever the Microsoft default still appears.
-    if (!providerIds.includes(MICROSOFT_TRANSLATE_PROVIDER_ID)) continue
-    assignmentsIds[featureKey] = providerIds.map((id) =>
+    if (!providers.includes(MICROSOFT_TRANSLATE_PROVIDER_ID)) continue
+    assignments[featureKey] = providers.map((id) =>
       id === MICROSOFT_TRANSLATE_PROVIDER_ID ? GOOGLE_TRANSLATE_PROVIDER_ID : id,
     )
   }
-  if (Object.keys(assignmentsIds).length === 0) {
+  if (Object.keys(assignments).length === 0) {
     return
   }
 
-  await setLocalConfig(
-    mergeWithArrayOverwrite(config, buildFeatureProviderIdsPatch(assignmentsIds)),
-  )
+  await setLocalConfig(mergeWithArrayOverwrite(config, buildFeatureProvidersPatch(assignments)))
   logger.info("[Config] Google Translate reachable, promoted it to the default translate provider")
 }

@@ -5,6 +5,6 @@ export type LanguageDetectionMode = z.infer<typeof languageDetectionModeSchema>
 
 export const languageDetectionConfigSchema = z.object({
   mode: languageDetectionModeSchema,
-  providerId: z.string().optional(),
+  provider: z.string().optional(),
 })
 export type LanguageDetectionConfig = z.infer<typeof languageDetectionConfigSchema>

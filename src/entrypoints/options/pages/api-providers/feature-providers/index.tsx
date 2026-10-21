@@ -76,14 +76,14 @@ function FeatureProviderTitle({
 }
 
 function FeatureProviderItem({ featureKey }: { featureKey: FeatureKey }) {
-  const { providers, providerIds, setProviderIds } = useFeatureProvider(featureKey)
+  const { providerOptions, providers, setProviders } = useFeatureProvider(featureKey)
 
   const selectedProviders = useMemo(
     () =>
-      providerIds
-        .map((id) => providers.find((provider) => provider.id === id))
+      providers
+        .map((id) => providerOptions.find((provider) => provider.id === id))
         .filter((provider) => provider !== undefined),
-    [providerIds, providers],
+    [providers, providerOptions],
   )
 
   return (
@@ -96,9 +96,9 @@ function FeatureProviderItem({ featureKey }: { featureKey: FeatureKey }) {
       description={i18n.t(getFeatureDescriptionI18nKey(featureKey))}
     >
       <ProviderMultiSelector
-        providers={providers}
-        value={providerIds}
-        onChange={setProviderIds}
+        providers={providerOptions}
+        value={providers}
+        onChange={setProviders}
         triggerSize="sm"
         selectContentProps={SELECT_CONTENT_PROPS}
       />
@@ -107,7 +107,8 @@ function FeatureProviderItem({ featureKey }: { featureKey: FeatureKey }) {
 }
 
 function CustomActionProviderItems() {
-  const { actions, providers, getProviderConfig, setActionProviderId } = useCustomActionProviders()
+  const { actions, providerOptions, getProviderConfig, setActionProvider } =
+    useCustomActionProviders()
 
   return actions.map((action) => (
     <ConfigItem
@@ -120,9 +121,9 @@ function CustomActionProviderItems() {
       description={toSystemPromptPreview(action)}
     >
       <ProviderSelector
-        providers={providers}
-        value={action.providerId}
-        onChange={(id) => setActionProviderId(action.id, id)}
+        providers={providerOptions}
+        value={action.provider}
+        onChange={(id) => setActionProvider(action.id, id)}
         triggerSize="sm"
         selectContentProps={SELECT_CONTENT_PROPS}
         placeholder={i18n.t("options.selectionToolbar.customActions.form.selectProvider")}

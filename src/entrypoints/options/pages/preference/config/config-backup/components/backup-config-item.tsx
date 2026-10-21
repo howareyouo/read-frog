@@ -1,7 +1,7 @@
 import { Icon } from "@iconify/react/dist/iconify.js"
 import { useMutation } from "@tanstack/react-query"
 import { useAtomValue, useSetAtom } from "jotai"
-import { useContext, useState } from "react"
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,10 +86,18 @@ function RestoreButton({ backup }: { backup: ConfigBackup }) {
   const setConfig = useSetAtom(writeConfigAtom)
 
   const { mutate: restoreBackup, isPending: isRestoring } = useMutation({
+    meta: {
+      errorDescription: i18n.t("options.preference.config.backup.restoreError"),
+    },
     mutationFn: async (backupToRestore: ConfigBackup) => {
       const parseResult = configSchema.safeParse(backupToRestore.config)
       if (!parseResult.success) {
-        throw new Error("Backup config is invalid")
+        const issue = parseResult.error.issues[0]
+        const detail = issue ? `${issue.path.join(".") || "(root)"}: ${issue.message}` : "unknown"
+        const remaining = parseResult.error.issues.length - 1
+        throw new Error(
+          `Backup config is invalid (${detail}${remaining > 0 ? `; +${remaining} more` : ""})`,
+        )
       }
 
       const isSame = await isSameAsLatestBackup(currentConfig, CONFIG_SCHEMA_VERSION)

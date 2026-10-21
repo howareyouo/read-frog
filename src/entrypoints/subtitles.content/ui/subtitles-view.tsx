@@ -1,8 +1,6 @@
-import {
-  IconGripHorizontal } from "@tabler/icons-react"
+import { IconGripHorizontal } from "@tabler/icons-react"
 import { useAtomValue } from "jotai"
-import { Activity,
-} from "react"
+import { Activity } from "react"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { SUBTITLES_BOX_CLASS, SUBTITLES_VIEW_CLASS } from "@/utils/constants/subtitles"
 import { cn } from "@/utils/styles/utils"

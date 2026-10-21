@@ -8,8 +8,8 @@ import {
   WALKED_ATTRIBUTE,
 } from "../../../../constants/dom-labels"
 import { shouldFilterSmallParagraph } from "../../filter-small-paragraph"
-import { normalizeForComparison } from "../../text-preparation"
 import { shouldSkipAsTargetLanguage } from "../../target-language-skip"
+import { normalizeForComparison } from "../../text-preparation"
 import { setTranslationDirAndLang } from "../../translation-attributes"
 import { createSpinnerInside } from "../../ui/spinner"
 import { translatingNodes } from "../translation-state"

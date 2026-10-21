@@ -130,7 +130,7 @@ export async function detectLanguageWithLLM(
         logger.warn("No config found for language detection")
         return null
       }
-      const ldProviderId = globalConfig.languageDetection.providerId
+      const ldProviderId = globalConfig.languageDetection.provider
       if (!ldProviderId) {
         logger.info("No provider configured for language detection")
         return null

@@ -13,7 +13,7 @@ export const selectionToolbarBuiltInActionStateSchema = z.object({
   enabled: z.boolean(),
   // Empty means "no provider assigned yet" — the built-in Dictionary ships
   // unassigned because a fresh profile has no LLM provider.
-  providerId: z.string(),
+  provider: z.string(),
 })
 
 export const selectionToolbarBuiltInActionsSchema = z.object({
@@ -26,7 +26,7 @@ export const selectionToolbarCustomActionSchema = z
     name: z.string().nonempty(),
     enabled: z.boolean().optional(),
     icon: z.string(),
-    providerId: z.string().nonempty(),
+    provider: z.string().nonempty(),
     systemPrompt: z.string(),
     prompt: z.string(),
     outputSchema: z.array(selectionToolbarCustomActionOutputFieldSchema).min(1),

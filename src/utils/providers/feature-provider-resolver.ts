@@ -2,7 +2,7 @@ import type { Config } from "@/types/config/config"
 import { isLLMProviderConfig } from "@/types/config/provider"
 import type { FeatureKey } from "@/utils/constants/feature-providers"
 import {
-  getFeatureProviderIds,
+  getFeatureProviders,
   resolveProviderConfigOrNull,
 } from "@/utils/constants/feature-providers"
 import { filterCoolingDownProviders } from "@/utils/providers/provider-cooldown"
@@ -28,7 +28,7 @@ const setCacheIdentityMemos = new WeakMap<Config, Map<FeatureKey, string>>()
  * Exported so status UIs report on the same set the rotation will dispatch to.
  */
 export function getUsableFeatureProviderIds(config: Config, featureKey: FeatureKey): string[] {
-  const all = getFeatureProviderIds(config, featureKey)
+  const all = getFeatureProviders(config, featureKey)
   return all.filter((id) =>
     doesProviderSupportsCapability(featureKey, config.providersConfig, id, { requireEnable: true }),
   )

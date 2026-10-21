@@ -1,8 +1,5 @@
-import {
-  useAtomValue } from "jotai"
-import { useCallback,
-  useState,
-} from "react"
+import { useAtomValue } from "jotai"
+import { useCallback, useState } from "react"
 import type { ContextSnapshot, SelectionSnapshot } from "../utils"
 import { contextAtom, selectionAtom } from "./atoms"
 

@@ -1,10 +1,7 @@
 import type { Config } from "@/types/config/config"
 import type { TranslateProviderConfig } from "@/types/config/provider"
 import { isLLMProviderConfig } from "@/types/config/provider"
-import {
-  getFeatureProviderIds,
-  getPrimaryFeatureProviderId,
-} from "@/utils/constants/feature-providers"
+import { getFeatureProviders, getPrimaryFeatureProvider } from "@/utils/constants/feature-providers"
 import { resolveFeatureProviderRefForRequest } from "./feature-provider-resolver"
 import { resolveProviderRefForCapability } from "./provider-registry"
 
@@ -29,7 +26,7 @@ export type UnwrappedProviderRef = TranslateProviderConfig
 export type SerializableProviderRef = { kind: "local"; config: TranslateProviderConfig }
 
 export function resolvePageTranslationProvider(config: Config): UnwrappedProviderRef {
-  const providerId = getPrimaryFeatureProviderId(config, "pageTranslation")
+  const providerId = getPrimaryFeatureProvider(config, "pageTranslation")
   const resolved = resolveProviderRefForCapability(
     "pageTranslation",
     config.providersConfig,
@@ -51,7 +48,7 @@ export function resolveRotatingPageTranslationProvider(config: Config): Unwrappe
   const resolved = resolveFeatureProviderRefForRequest("pageTranslation", config)
   if (!resolved) {
     throw new Error(
-      `No page translation provider for ids "${getFeatureProviderIds(config, "pageTranslation").join(", ")}"`,
+      `No page translation provider for ids "${getFeatureProviders(config, "pageTranslation").join(", ")}"`,
     )
   }
   return resolved.config

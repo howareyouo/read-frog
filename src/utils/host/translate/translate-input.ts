@@ -85,7 +85,7 @@ export async function translateTextForInput(
   const resolved = resolveFeatureProviderRefForRequest("inputTranslation", config)
   if (!resolved) {
     throw new Error(
-      `No input translation provider for ids "${config.inputTranslation.providerIds.join(", ")}"`,
+      `No input translation provider for ids "${config.inputTranslation.providers.join(", ")}"`,
     )
   }
   const providerConfig = resolved.config

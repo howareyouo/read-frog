@@ -7,10 +7,7 @@ const MAX_ERROR_MESSAGE_LENGTH = 240
 
 function looksLikeHtml(text: string): boolean {
   const head = text.trimStart().slice(0, 2_000)
-  return (
-    head.startsWith("<") &&
-    /<!doctype html|<html[\s>]|<head[\s>]|<body[\s>]/i.test(head)
-  )
+  return head.startsWith("<") && /<!doctype html|<html[\s>]|<head[\s>]|<body[\s>]/i.test(head)
 }
 
 function decodeBasicHtmlEntities(text: string): string {

@@ -5,7 +5,7 @@ import { atomFamily } from "jotai-family"
 import type { Config } from "@/types/config/config"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
 import { configAtom } from "@/utils/atoms/config"
-import { getFeatureProviderIds } from "@/utils/constants/feature-providers"
+import { getFeatureProviders } from "@/utils/constants/feature-providers"
 import { findSelectionToolbarAction } from "@/utils/custom-actions"
 import type {
   CustomActionProviderRef,
@@ -105,8 +105,8 @@ function createSelectionToolbarTranslateRequestSliceAtom() {
   return selectAtom(
     configAtom,
     (config): SelectionToolbarTranslateRequestSlice => {
-      const providerIds = getFeatureProviderIds(config, "selectionTranslation")
-      const providers = providerIds
+      const providers = getFeatureProviders(config, "selectionTranslation")
+      const providerRefs = providers
         .map(
           (id) =>
             resolveProviderRefForCapability(
@@ -121,8 +121,8 @@ function createSelectionToolbarTranslateRequestSliceAtom() {
         language: config.language,
         enableAIContentAware: config.pageTranslation.enableAIContentAware,
         customPromptsConfig: config.pageTranslation.customPromptsConfig,
-        provider: providers[0] ?? null,
-        providers,
+        provider: providerRefs[0] ?? null,
+        providers: providerRefs,
       }
     },
     dequal,
@@ -140,11 +140,7 @@ function createSelectionToolbarCustomActionRequestSliceAtom(actionId: string) {
         language: config.language,
         action,
         provider: action
-          ? resolveProviderRefForCapability(
-              "customAction",
-              config.providersConfig,
-              action.providerId,
-            )
+          ? resolveProviderRefForCapability("customAction", config.providersConfig, action.provider)
           : null,
       }
     },

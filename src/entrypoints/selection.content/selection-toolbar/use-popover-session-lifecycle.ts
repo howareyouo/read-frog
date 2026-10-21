@@ -1,10 +1,5 @@
-import {
-  useAtomValue,
-  useSetAtom } from "jotai"
-import { useCallback,
-  useRef,
-  useState,
-} from "react"
+import { useAtomValue, useSetAtom } from "jotai"
+import { useCallback, useRef, useState } from "react"
 import type { SelectionPopoverActions } from "@/components/ui/selection-popover"
 import type { SelectionSession } from "./atoms"
 import { isSelectionToolbarVisibleAtom, selectionSessionAtom } from "./atoms"

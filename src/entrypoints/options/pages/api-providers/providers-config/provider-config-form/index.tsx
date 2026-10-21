@@ -17,7 +17,7 @@ import {
   findFeatureMissingProvider,
 } from "@/utils/config/helpers"
 import {
-  buildFeatureProviderIdsPatch,
+  buildFeatureProvidersPatch,
   getFeatureLabelI18nKey,
 } from "@/utils/constants/feature-providers"
 import { getSelectionToolbarActions } from "@/utils/custom-actions"
@@ -128,7 +128,7 @@ function EditableProviderConfig({ providerConfig }: { providerConfig: APIProvide
     if (unsatisfied) {
       // Name the feature. The block is worth nothing if the user cannot tell
       // which slot it is protecting — and it fires for switched-off features
-      // too, whose stored providerId would otherwise be left dangling.
+      // too, whose stored provider would otherwise be left dangling.
       toastManager.add({
         type: "error",
         title: i18n.t("options.apiProviders.form.featureWouldLoseProvider", [
@@ -146,7 +146,7 @@ function EditableProviderConfig({ providerConfig }: { providerConfig: APIProvide
       updatedAllProviders,
     )
     const hasAffectedCustomActions = getSelectionToolbarActions(config.selectionToolbar).some(
-      (action) => action.providerId === providerConfig.id,
+      (action) => action.provider === providerConfig.id,
     )
 
     if (hasAffectedCustomActions && !updatedSelectionToolbar) {
@@ -162,7 +162,7 @@ function EditableProviderConfig({ providerConfig }: { providerConfig: APIProvide
       config,
       updatedAllProviders,
     )
-    let patch = buildFeatureProviderIdsPatch(fallbacks)
+    let patch = buildFeatureProvidersPatch(fallbacks)
     if (updatedSelectionToolbar) {
       patch = {
         ...patch,
@@ -180,7 +180,7 @@ function EditableProviderConfig({ providerConfig }: { providerConfig: APIProvide
         ...patch,
         languageDetection: {
           ...config.languageDetection,
-          providerId: languageDetectionFallback,
+          provider: languageDetectionFallback,
         },
       }
     }

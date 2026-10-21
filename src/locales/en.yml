@@ -360,6 +360,7 @@ options:
         backupNow: Backup now
         backupSuccess: Backup created successfully
         restoreSuccess: Config restored successfully
+        restoreError: Restore failed
         empty:
           title: No backups available yet
           description: Backups are created automatically every hour if the config is changed.
@@ -1032,6 +1033,7 @@ subtitles:
     translatedExportFailed: Failed to generate translated subtitles
     translatedExportIncomplete: Failed to translate all subtitle lines
     translatedExportSameLanguage: Source and target languages are the same
+    noProviderSelected: No translation provider selected for subtitles. Choose one in the video subtitles settings.
 hotkey:
   control: Ctrl
   alt: Option

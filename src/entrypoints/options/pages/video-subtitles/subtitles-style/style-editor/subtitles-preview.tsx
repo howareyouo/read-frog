@@ -1,7 +1,5 @@
-import {
-  useAtomValue } from "jotai"
-import { Activity,
-} from "react"
+import { useAtomValue } from "jotai"
+import { Activity } from "react"
 import { GradientBackground } from "@/components/gradient-background"
 import {
   MainSubtitle,

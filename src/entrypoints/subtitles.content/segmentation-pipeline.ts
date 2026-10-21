@@ -203,8 +203,8 @@ export class SegmentationPipeline {
     // send the entire remaining video to the segmentation model instead.
     const config = await getCachedConfig()
     const translateLookAheadMs = effectiveLookAheadMs(
-      (config?.videoSubtitles.translateLookAheadSeconds ??
-        DEFAULT_TRANSLATE_LOOK_AHEAD_SECONDS) * 1000,
+      (config?.videoSubtitles.translateLookAheadSeconds ?? DEFAULT_TRANSLATE_LOOK_AHEAD_SECONDS) *
+        1000,
       this.getVideoElement()?.playbackRate,
     )
     const chunkLookAheadMs = effectiveLookAheadMs(

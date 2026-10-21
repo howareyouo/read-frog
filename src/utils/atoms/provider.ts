@@ -7,7 +7,7 @@ import { llmProviderConfigItemSchema, providerConfigItemSchema } from "@/types/c
 import { resolveProviderRefForCapability } from "@/utils/providers/provider-registry"
 import { getProviderConfigById } from "../config/helpers"
 import type { FeatureKey } from "../constants/feature-providers"
-import { getPrimaryFeatureProviderId } from "../constants/feature-providers"
+import { getPrimaryFeatureProvider } from "../constants/feature-providers"
 import { configAtom, configFieldsAtomMap } from "./config"
 
 export const featureProviderRefAtom = atomFamily((featureKey: FeatureKey) =>
@@ -15,7 +15,7 @@ export const featureProviderRefAtom = atomFamily((featureKey: FeatureKey) =>
     const config = get(configAtom)
     // Non-request consumers read the primary provider; requests rotate through
     // the full selection via resolveFeatureProviderRefForRequest instead.
-    const providerId = getPrimaryFeatureProviderId(config, featureKey)
+    const providerId = getPrimaryFeatureProvider(config, featureKey)
     return resolveProviderRefForCapability(featureKey, config.providersConfig, providerId)
   }),
 )

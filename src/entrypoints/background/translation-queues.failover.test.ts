@@ -14,7 +14,7 @@ import { executeWithProviderFailover } from "./translation-queues"
 // the feature's provider ids and each provider's id/enabled/capability.
 function makeConfig(ids: string[]): Config {
   return {
-    videoSubtitles: { providerIds: ids },
+    videoSubtitles: { providers: ids },
     providersConfig: ids.map((id) => ({
       id,
       enabled: true,

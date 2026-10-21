@@ -419,5 +419,4 @@ export const SEARCH_ITEMS: SearchItem[] = [
     descriptionKey: "options.videoSubtitles.cache.clearCache.description",
     pageKey: "options.videoSubtitles.title",
   },
-
 ] satisfies SearchItemDefinition[]

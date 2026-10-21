@@ -9,7 +9,7 @@ import { Drawer, DrawerBody, DrawerContent, DrawerTrigger } from "@/components/u
 import type { Config } from "@/types/config/config"
 import type { ProvidersConfig } from "@/types/config/provider"
 import { configAtom, configFieldsAtomMap } from "@/utils/atoms/config"
-import { FEATURE_KEYS, getFeatureProviderIds } from "@/utils/constants/feature-providers"
+import { FEATURE_KEYS, getFeatureProviders } from "@/utils/constants/feature-providers"
 import { getSelectionToolbarActions } from "@/utils/custom-actions"
 import { i18n } from "@/utils/i18n"
 import type { ProviderSelectorOption } from "@/utils/providers/provider-display"
@@ -43,7 +43,7 @@ function getSelectedProviderOptions(
   for (const featureKey of FEATURE_KEYS) {
     // A feature may rotate through several providers — every one of them is
     // part of the feature's current selection.
-    for (const providerId of getFeatureProviderIds(config, featureKey)) {
+    for (const providerId of getFeatureProviders(config, featureKey)) {
       addProvider(featureKey, providerId)
     }
   }
@@ -52,7 +52,7 @@ function getSelectedProviderOptions(
     if (action.enabled === false) {
       continue
     }
-    addProvider("customAction", action.providerId)
+    addProvider("customAction", action.provider)
   }
 
   return selectedProviders

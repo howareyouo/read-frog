@@ -20,7 +20,7 @@ import type { FeatureKey } from "@/utils/constants/feature-providers"
 import {
   FEATURE_KEYS,
   getFeatureLabelI18nKey,
-  getFeatureProviderIds,
+  getFeatureProviders,
 } from "@/utils/constants/feature-providers"
 import { API_PROVIDER_ITEMS } from "@/utils/constants/providers"
 import { getSelectionToolbarActions } from "@/utils/custom-actions"
@@ -139,12 +139,12 @@ function ProviderCardList() {
     for (const provider of apiProvidersConfig) {
       map.set(provider.id, {
         features: FEATURE_KEYS.filter((key) =>
-          getFeatureProviderIds(config, key).includes(provider.id),
+          getFeatureProviders(config, key).includes(provider.id),
         ),
-        customActions: customActions.filter((action) => action.providerId === provider.id),
+        customActions: customActions.filter((action) => action.provider === provider.id),
         isLanguageDetectionProvider:
           config.languageDetection.mode === "llm" &&
-          config.languageDetection.providerId === provider.id,
+          config.languageDetection.provider === provider.id,
       })
     }
     return map

@@ -12,7 +12,7 @@ export interface CustomActionTemplate {
   nameKey: string
   descriptionKey: string
   icon: string
-  createAction: (providerId: string) => SelectionToolbarCustomAction
+  createAction: (provider: string) => SelectionToolbarCustomAction
 }
 
 type CustomActionTemplateDefinition = Omit<CustomActionTemplate, "nameKey" | "descriptionKey"> & {
@@ -26,12 +26,12 @@ export const CUSTOM_ACTION_TEMPLATES: CustomActionTemplate[] = [
     nameKey: `${T_PREFIX}.dictionary.name`,
     descriptionKey: `${T_PREFIX}.dictionary.description`,
     icon: "tabler:book-2",
-    createAction: (providerId: string): SelectionToolbarCustomAction => ({
+    createAction: (provider: string): SelectionToolbarCustomAction => ({
       id: getRandomUUID(),
       name: i18n.t(`${T_PREFIX}.dictionary.name`),
       enabled: true,
       icon: "tabler:book-2",
-      providerId,
+      provider,
       systemPrompt: i18n.t(`${T_PREFIX}.dictionary.systemPrompt`),
       prompt: i18n.t(`${T_PREFIX}.dictionary.prompt`),
       outputSchema: [
@@ -85,12 +85,12 @@ export const CUSTOM_ACTION_TEMPLATES: CustomActionTemplate[] = [
     nameKey: `${T_PREFIX}.improveWriting.name`,
     descriptionKey: `${T_PREFIX}.improveWriting.description`,
     icon: "tabler:pencil-check",
-    createAction: (providerId: string): SelectionToolbarCustomAction => ({
+    createAction: (provider: string): SelectionToolbarCustomAction => ({
       id: getRandomUUID(),
       name: i18n.t(`${T_PREFIX}.improveWriting.name`),
       enabled: true,
       icon: "tabler:pencil-check",
-      providerId,
+      provider,
       systemPrompt: i18n.t(`${T_PREFIX}.improveWriting.systemPrompt`),
       prompt: i18n.t(`${T_PREFIX}.improveWriting.prompt`),
       outputSchema: [
@@ -112,12 +112,12 @@ export const CUSTOM_ACTION_TEMPLATES: CustomActionTemplate[] = [
     nameKey: `${T_PREFIX}.blank.name`,
     descriptionKey: `${T_PREFIX}.blank.description`,
     icon: "tabler:sparkles",
-    createAction: (providerId: string): SelectionToolbarCustomAction => ({
+    createAction: (provider: string): SelectionToolbarCustomAction => ({
       id: getRandomUUID(),
       name: i18n.t(`${T_PREFIX}.blank.name`),
       enabled: true,
       icon: "tabler:sparkles",
-      providerId,
+      provider,
       systemPrompt: "",
       prompt: "",
       outputSchema: [

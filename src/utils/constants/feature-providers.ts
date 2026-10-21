@@ -13,26 +13,26 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number]
 
 export interface FeatureProviderDef {
   /** The providers a feature rotates through; the first one is the primary. */
-  getProviderIds: (config: Config) => string[]
-  providerIdsConfigPath: readonly string[]
+  getProviders: (config: Config) => string[]
+  providersPath: readonly string[]
 }
 
 export const FEATURE_PROVIDER_DEFS = {
   pageTranslation: {
-    getProviderIds: (c: Config) => c.pageTranslation.providerIds,
-    providerIdsConfigPath: ["pageTranslation", "providerIds"],
+    getProviders: (c: Config) => c.pageTranslation.providers,
+    providersPath: ["pageTranslation", "providers"],
   },
   videoSubtitles: {
-    getProviderIds: (c: Config) => c.videoSubtitles.providerIds,
-    providerIdsConfigPath: ["videoSubtitles", "providerIds"],
+    getProviders: (c: Config) => c.videoSubtitles.providers,
+    providersPath: ["videoSubtitles", "providers"],
   },
   selectionTranslation: {
-    getProviderIds: (c: Config) => c.selectionToolbar.features.translate.providerIds,
-    providerIdsConfigPath: ["selectionToolbar", "features", "translate", "providerIds"],
+    getProviders: (c: Config) => c.selectionToolbar.features.translate.providers,
+    providersPath: ["selectionToolbar", "features", "translate", "providers"],
   },
   inputTranslation: {
-    getProviderIds: (c: Config) => c.inputTranslation.providerIds,
-    providerIdsConfigPath: ["inputTranslation", "providerIds"],
+    getProviders: (c: Config) => c.inputTranslation.providers,
+    providersPath: ["inputTranslation", "providers"],
   },
 } as const satisfies Record<FeatureKey, FeatureProviderDef>
 
@@ -40,13 +40,13 @@ export const FEATURE_PROVIDER_DEFS = {
  * The provider ids a feature will rotate through; the first one is the
  * feature's primary provider.
  */
-export function getFeatureProviderIds(config: Config, featureKey: FeatureKey): string[] {
-  return FEATURE_PROVIDER_DEFS[featureKey].getProviderIds(config)
+export function getFeatureProviders(config: Config, featureKey: FeatureKey): string[] {
+  return FEATURE_PROVIDER_DEFS[featureKey].getProviders(config)
 }
 
-/** The primary provider — first of `providerIds`. */
-export function getPrimaryFeatureProviderId(config: Config, featureKey: FeatureKey): string {
-  return getFeatureProviderIds(config, featureKey)[0] ?? ""
+/** The primary provider — first of `providers`. */
+export function getPrimaryFeatureProvider(config: Config, featureKey: FeatureKey): string {
+  return getFeatureProviders(config, featureKey)[0] ?? ""
 }
 
 /** Maps FeatureKey (with dots) to i18n-safe key (with underscores) for `options.apiProviders.featureProviders.features.*` */
@@ -74,7 +74,7 @@ export function getFeatureDescriptionI18nKey(featureKey: FeatureKey): FeatureDes
 export function resolveProviderConfig(config: Config, featureKey: FeatureKey) {
   const providerConfig = resolveProviderConfigOrNull(config, featureKey)
   if (!providerConfig) {
-    const providerId = getPrimaryFeatureProviderId(config, featureKey)
+    const providerId = getPrimaryFeatureProvider(config, featureKey)
     throw new Error(`No provider config for id "${providerId}" (feature "${featureKey}")`)
   }
   return providerConfig
@@ -84,7 +84,7 @@ export function resolveProviderConfigOrNull(
   config: Config,
   featureKey: FeatureKey,
 ): ProviderConfig | null {
-  const providerId = getPrimaryFeatureProviderId(config, featureKey)
+  const providerId = getPrimaryFeatureProvider(config, featureKey)
   return getProviderConfigById(config.providersConfig, providerId) ?? null
 }
 
@@ -109,9 +109,9 @@ export function setConfigPath(
 
 /**
  * Convert a feature→provider-ids mapping into a Partial<Config> using
- * FEATURE_PROVIDER_DEFS.providerIdsConfigPath.
+ * FEATURE_PROVIDER_DEFS.providersPath.
  */
-export function buildFeatureProviderIdsPatch(
+export function buildFeatureProvidersPatch(
   assignments: Partial<Record<FeatureKey, string[]>>,
 ): Partial<Config> {
   let patch: Record<string, unknown> = {}
@@ -120,7 +120,7 @@ export function buildFeatureProviderIdsPatch(
     const newIds = assignments[key]
     if (newIds === undefined) continue
 
-    patch = setConfigPath(patch, FEATURE_PROVIDER_DEFS[key].providerIdsConfigPath, newIds)
+    patch = setConfigPath(patch, FEATURE_PROVIDER_DEFS[key].providersPath, newIds)
   }
 
   return patch
@@ -133,7 +133,7 @@ export function buildFeatureProviderIdsPatch(
  */
 export function buildFeatureProviderSelectionPatch(
   featureKey: FeatureKey,
-  providerId: string,
+  provider: string,
 ): Partial<Config> {
-  return buildFeatureProviderIdsPatch({ [featureKey]: [providerId] })
+  return buildFeatureProvidersPatch({ [featureKey]: [provider] })
 }

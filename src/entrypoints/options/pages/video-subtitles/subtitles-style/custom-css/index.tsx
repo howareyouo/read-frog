@@ -1,8 +1,5 @@
-import {
-  useAtomValue } from "jotai"
-import { useCallback,
-  useState,
-} from "react"
+import { useAtomValue } from "jotai"
+import { useCallback, useState } from "react"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { i18n } from "@/utils/i18n"

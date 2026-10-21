@@ -1,8 +1,6 @@
-import {
-  useSelector } from "@tanstack/react-store"
+import { useSelector } from "@tanstack/react-store"
 import type * as React from "react"
-import { useCallback,
-} from "react"
+import { useCallback } from "react"
 import { Field, FieldError, FieldTitle } from "@/components/ui/base-ui/field"
 import { Select } from "@/components/ui/base-ui/select"
 import { useFieldContext } from "./form-context"

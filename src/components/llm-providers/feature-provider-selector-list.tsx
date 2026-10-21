@@ -27,14 +27,14 @@ function FeatureProviderField({
   providerSelectorClassName?: string
   providerSelectorTriggerSize?: ProviderSelectorTriggerSize
 }) {
-  const { providers, providerIds, setProviderIds } = useFeatureProvider(featureKey)
+  const { providerOptions, providers, setProviders } = useFeatureProvider(featureKey)
 
   const selectedProviders = useMemo(
     () =>
-      providerIds
-        .map((id) => providers.find((provider) => provider.id === id))
+      providers
+        .map((id) => providerOptions.find((provider) => provider.id === id))
         .filter((provider) => provider !== undefined),
-    [providerIds, providers],
+    [providers, providerOptions],
   )
 
   return (
@@ -44,9 +44,9 @@ function FeatureProviderField({
         <SetApiKeyWarning providerConfigs={selectedProviders} />
       </FieldTitle>
       <ProviderMultiSelector
-        providers={providers}
-        value={providerIds}
-        onChange={setProviderIds}
+        providers={providerOptions}
+        value={providers}
+        onChange={setProviders}
         className={providerSelectorClassName}
         triggerSize={providerSelectorTriggerSize}
       />
@@ -61,7 +61,8 @@ function CustomActionProviderFields({
   providerSelectorClassName?: string
   providerSelectorTriggerSize?: ProviderSelectorTriggerSize
 }) {
-  const { actions, providers, getProviderConfig, setActionProviderId } = useCustomActionProviders()
+  const { actions, providerOptions, getProviderConfig, setActionProvider } =
+    useCustomActionProviders()
 
   if (actions.length === 0) {
     return null
@@ -79,9 +80,9 @@ function CustomActionProviderFields({
             <SetApiKeyWarning providerConfig={getProviderConfig(action)} />
           </FieldTitle>
           <ProviderSelector
-            providers={providers}
-            value={action.providerId}
-            onChange={(id) => setActionProviderId(action.id, id)}
+            providers={providerOptions}
+            value={action.provider}
+            onChange={(id) => setActionProvider(action.id, id)}
             className={providerSelectorClassName}
             triggerSize={providerSelectorTriggerSize}
             placeholder={i18n.t("options.selectionToolbar.customActions.form.selectProvider")}

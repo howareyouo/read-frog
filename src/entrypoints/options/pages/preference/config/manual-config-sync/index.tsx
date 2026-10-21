@@ -1,7 +1,7 @@
 import { Icon } from "@iconify/react"
 import { useMutation } from "@tanstack/react-query"
 import { useAtomValue, useSetAtom } from "jotai"
-import { useContext, useState } from "react"
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +55,9 @@ function ImportConfig() {
   const setConfig = useSetAtom(writeConfigAtom)
 
   const { mutate: importConfig, isPending: isImporting } = useMutation({
+    meta: {
+      errorDescription: i18n.t("options.preference.config.manualSync.importError"),
+    },
     mutationFn: async (file: File) => {
       const fileContent = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
@@ -95,7 +98,12 @@ function ImportConfig() {
 
       const parseResult = configSchema.safeParse(parsed.config)
       if (!parseResult.success) {
-        throw new TypeError("Imported config is invalid")
+        const issue = parseResult.error.issues[0]
+        const detail = issue ? `${issue.path.join(".") || "(root)"}: ${issue.message}` : "unknown"
+        const remaining = parseResult.error.issues.length - 1
+        throw new TypeError(
+          `Imported config is invalid (${detail}${remaining > 0 ? `; +${remaining} more` : ""})`,
+        )
       }
 
       await addBackup(currentConfig, EXTENSION_VERSION)

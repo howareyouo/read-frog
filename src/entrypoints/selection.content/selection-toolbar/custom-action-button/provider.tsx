@@ -116,7 +116,7 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
       language,
       action: activeAction,
       provider: activeAction
-        ? resolveProviderRefForCapability("customAction", providersConfig, activeAction.providerId)
+        ? resolveProviderRefForCapability("customAction", providersConfig, activeAction.provider)
         : null,
     }),
     [activeAction, language, providersConfig],
@@ -203,14 +203,14 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
   )
 
   const handleProviderChange = useCallback(
-    (providerId: string) => {
+    (provider: string) => {
       if (!activeActionId) {
         return
       }
 
       void setConfig({
         selectionToolbar: patchSelectionToolbarAction(selectionToolbarConfig, activeActionId, {
-          providerId,
+          provider,
         }),
       })
     },

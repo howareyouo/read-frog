@@ -69,13 +69,7 @@ describe("ModelTestButton repro", () => {
     // A should still be testing
     expect(isTesting(container, 0)).toBe(true)
 
-    await waitFor(
-      () => expect(isTesting(container, 0)).toBe(false),
-      { timeout: 1000 },
-    )
-    await waitFor(
-      () => expect(isTesting(container, 1)).toBe(false),
-      { timeout: 1000 },
-    )
+    await waitFor(() => expect(isTesting(container, 0)).toBe(false), { timeout: 1000 })
+    await waitFor(() => expect(isTesting(container, 1)).toBe(false), { timeout: 1000 })
   })
 })

@@ -113,10 +113,10 @@ export function resolveLanguageDetectionConfigForModeChange(
   }
 
   const hasSelectedProvider =
-    currentConfig.providerId !== undefined && availableIds.includes(currentConfig.providerId)
+    currentConfig.provider !== undefined && availableIds.includes(currentConfig.provider)
   return {
     mode: "llm",
-    providerId: hasSelectedProvider ? currentConfig.providerId : availableIds[0]!,
+    provider: hasSelectedProvider ? currentConfig.provider : availableIds[0]!,
   }
 }
 
@@ -133,9 +133,9 @@ export function computeProviderFallbacksAfterDeletion(
 ): Partial<Record<FeatureKey, string[]>> {
   const updates: Partial<Record<FeatureKey, string[]>> = {}
   for (const key of FEATURE_KEYS) {
-    const providerIds = FEATURE_PROVIDER_DEFS[key].getProviderIds(config)
-    if (!providerIds.includes(deletedProviderId)) continue
-    const remaining = providerIds.filter((id) => id !== deletedProviderId)
+    const providers = FEATURE_PROVIDER_DEFS[key].getProviders(config)
+    if (!providers.includes(deletedProviderId)) continue
+    const remaining = providers.filter((id) => id !== deletedProviderId)
     updates[key] =
       remaining.length > 0
         ? remaining
@@ -151,7 +151,7 @@ export function computeProviderFallbacksAfterDeletion(
  * it, or null when every feature keeps a working one.
  *
  * Gated on enabled providers, not merely present ones, so the guard actually
- * fires. Features the user has switched off count too: their `providerId` is
+ * fires. Features the user has switched off count too: their `provider` is
  * stored either way, and letting the delete through would leave the slot
  * pointing at a provider that no longer exists.
  */
@@ -186,7 +186,7 @@ export function computeSelectionToolbarCustomActionFallbacksAfterDeletion(
   remainingProviders: ProvidersConfig,
 ): Config["selectionToolbar"] | null {
   const affectedActions = getSelectionToolbarActions(config.selectionToolbar).filter(
-    (action) => action.providerId === deletedProviderId,
+    (action) => action.provider === deletedProviderId,
   )
 
   if (affectedActions.length === 0) {
@@ -204,7 +204,7 @@ export function computeSelectionToolbarCustomActionFallbacksAfterDeletion(
   return affectedActions.reduce(
     (selectionToolbar, action) =>
       patchSelectionToolbarAction(selectionToolbar, action.id, {
-        providerId: fallbackProviderId,
+        provider: fallbackProviderId,
       }),
     config.selectionToolbar,
   )
@@ -213,7 +213,7 @@ export function computeSelectionToolbarCustomActionFallbacksAfterDeletion(
 /**
  * Compute languageDetection fallback when a provider is deleted.
  * Only applies when mode is "llm" and the deleted provider is the current one.
- * Returns the new providerId (first enabled LLM), or undefined if none available.
+ * Returns the new provider (first enabled LLM), or undefined if none available.
  * Returns null when no change is needed.
  */
 export function computeLanguageDetectionFallbackAfterDeletion(
@@ -222,7 +222,7 @@ export function computeLanguageDetectionFallbackAfterDeletion(
   remainingProviders: ProvidersConfig,
 ): string | undefined | null {
   if (config.languageDetection.mode !== "llm") return null
-  if (config.languageDetection.providerId !== deletedProviderId) return null
+  if (config.languageDetection.provider !== deletedProviderId) return null
 
   return getEnabledProviderIdsForCapability("languageDetection", remainingProviders)[0]
 }

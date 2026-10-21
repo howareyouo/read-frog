@@ -46,7 +46,9 @@ export async function initializeConfig(): Promise<InitializeConfigResult> {
     config = storedConfig
   }
 
-  if (!configSchema.safeParse(config).success) {
+  const parsedConfig = configSchema.safeParse(config)
+
+  if (!parsedConfig.success) {
     logger.error("Config is invalid, using default config")
     // Keep the discarded config around — a corrupted store used to wipe the
     // user's settings silently; now it can be recovered from this key.
@@ -63,6 +65,9 @@ export async function initializeConfig(): Promise<InitializeConfigResult> {
     // The rebuilt config is untouched defaults, so recovered users get the
     // same one-time provider selection a genuine fresh install does.
     isFreshInstall = true
+  } else {
+    config = parsedConfig.data
+    didConfigChange = parsedConfig.data !== storedConfig
   }
 
   if (import.meta.env.DEV) {

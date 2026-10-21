@@ -97,8 +97,8 @@ export function LanguageDetectionConfig() {
           {isLLMMode && (
             <ProviderSelector
               providers={selectableProviders}
-              value={languageDetection.providerId ?? ""}
-              onChange={(providerId) => void setLanguageDetection({ providerId })}
+              value={languageDetection.provider ?? ""}
+              onChange={(provider) => void setLanguageDetection({ provider })}
               placeholder={i18n.t("options.apiProviders.languageDetection.provider.placeholder")}
               triggerSize="sm"
               selectContentProps={SELECT_CONTENT_PROPS}

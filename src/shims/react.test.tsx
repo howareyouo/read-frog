@@ -8,8 +8,9 @@
  * still pass — they assert React 19 semantics — but they cannot reproduce the
  * Preact-only breakage.
  */
-import { act as rtlAct } from "@testing-library/react"
+
 import { Tooltip } from "@base-ui/react/tooltip"
+import { act as rtlAct } from "@testing-library/react"
 import { createRoot } from "react-dom/client"
 import { describe, expect, it } from "vitest"
 
@@ -45,7 +46,14 @@ describe("react shim: ref-as-prop on plain function components", () => {
     const refs: unknown[] = []
     const mounted = mountTooltip(
       <Tooltip.Trigger
-        render={<PlainButton data-testid="trigger" ref={(el) => { refs.push(el) }} />}
+        render={
+          <PlainButton
+            data-testid="trigger"
+            ref={(el) => {
+              refs.push(el)
+            }}
+          />
+        }
       >
         trigger
       </Tooltip.Trigger>,
@@ -61,9 +69,7 @@ describe("react shim: ref-as-prop on plain function components", () => {
 
   it("keeps Base UI hover-close from crashing on registered trigger elements", async () => {
     const mounted = mountTooltip(
-      <Tooltip.Trigger render={<PlainButton data-testid="trigger" />}>
-        trigger
-      </Tooltip.Trigger>,
+      <Tooltip.Trigger render={<PlainButton data-testid="trigger" />}>trigger</Tooltip.Trigger>,
     )
     await flush()
 
@@ -75,9 +81,7 @@ describe("react shim: ref-as-prop on plain function components", () => {
     // registered instead of the DOM node (the pre-shim-fix behavior), this
     // dispatch throws "TypeError: e.contains is not a function".
     expect(() => {
-      button?.dispatchEvent(
-        new MouseEvent("mousemove", { bubbles: true, clientX: 5, clientY: 5 }),
-      )
+      button?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 5, clientY: 5 }))
     }).not.toThrow()
 
     await mounted.unmount()

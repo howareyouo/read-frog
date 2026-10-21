@@ -1,7 +1,5 @@
-import {
-  IconTool } from "@tabler/icons-react"
-import { useCallback,
-} from "react"
+import { IconTool } from "@tabler/icons-react"
+import { useCallback } from "react"
 import { buttonVariants } from "@/components/ui/base-ui/button"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
 import { i18n } from "@/utils/i18n"

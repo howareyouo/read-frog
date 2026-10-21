@@ -24,21 +24,21 @@ import {
   walkAndLabelElementChunked,
 } from "@/utils/host/dom/traversal"
 import {
+  translateNodes,
+  translateNodesBilingualMode,
+} from "@/utils/host/translate/core/translation-modes"
+import {
   findStaleBilingualLayoutSource,
   findStaleTranslationOnlyAnchor,
   getBilingualTranslationStateForWrapper,
   wasCharacterDataChangeExtensionDriven,
   wasNodeRemovedByExtension,
 } from "@/utils/host/translate/core/translation-state"
+import { translateWalkedElement } from "@/utils/host/translate/core/translation-walker"
 import {
   canSplitParagraphIntoDescendants,
   isGiantParagraphUnit,
 } from "@/utils/host/translate/dom/paragraph-segmentation"
-import {
-  translateNodes,
-  translateNodesBilingualMode,
-} from "@/utils/host/translate/core/translation-modes"
-import { translateWalkedElement } from "@/utils/host/translate/core/translation-walker"
 import { removeAllTranslatedWrapperNodes } from "@/utils/host/translate/dom/translation-cleanup"
 import { validateTranslationConfigAndToast } from "@/utils/host/translate/translate-text"
 import {
