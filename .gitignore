@@ -1,11 +1,9 @@
 .*/
 scripts/output/
+node_modules/
 coverage/
 docs/
-node_modules
-stats.html
-stats-*.html
-stats-*.json
+stats*.html
 web-ext.config.ts
 tsconfig.local.json
 .env
@@ -13,8 +11,5 @@ tsconfig.local.json
 *.log
 
 !.github/
-!.agents/
-!.vscode/extensions.json
-!.vscode/settings.json
 !.env.example
 !.env.local.example
