@@ -5,14 +5,6 @@ export const NAVIGATION_HANDLER_DELAY = 1000
 export const MAX_GAP_MS = 2_000
 export const PAUSE_TIMEOUT_MS = 1_000
 
-/**
- * How long the translated-subtitles flow waits for the content-aware summary before
- * starting translation anyway. Bounds the summary round trip so the first translated
- * batch usually lands in the same cache-key generation as the rest of the video
- * without ever blocking caption display (the source track is already on screen).
- */
-export const SUMMARY_WAIT_TIMEOUT_MS = 5_000
-
 /** Shortest cue worth emitting — anything thinner cannot be painted on screen. */
 export const MIN_CUE_DURATION_MS = 120
 /**
@@ -38,12 +30,14 @@ export const MAX_LOOKAHEAD_RATE = 4
 /**
  * How far ahead of the playhead translation starts working on a cue. A cue
  * closer than this to the playhead cannot finish translating before it is read,
- * so requesting it — at feature start or right after landing a seek — only pays
- * for a translation that arrives after the line has already been shown. Used in
- * two places: the coordinator keeps this near zone out of the window (those
- * cues play in the source language), and the dispatcher pulls every deadline
- * this much earlier so requests fire ahead of playback instead of at it. The
- * background's own round-trip margin still stacks on top of this.
+ * so requesting it in steady state only pays for a translation that arrives
+ * after the line has already been shown. Used in two places: the coordinator
+ * keeps this near zone out of the window (those cues play in the source
+ * language — except the first window after a cold start or a big seek, which
+ * reaches down to the playhead, because there nothing ever covered the near
+ * zone), and the dispatcher pulls every deadline this much earlier so requests
+ * fire ahead of playback instead of at it. The background's own round-trip
+ * margin still stacks on top of this.
  */
 export const TRANSLATE_LEAD_MS = 15_000
 

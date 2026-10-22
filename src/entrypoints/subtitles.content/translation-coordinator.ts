@@ -50,6 +50,15 @@ export class TranslationCoordinator {
   /** Non-null between `seeking` and the first tick that follows it. */
   private seekFromMs: number | null = null
   /**
+   * True until a window request is booked. In steady state every cue gets
+   * requested while it still sits a TRANSLATE_LEAD_MS ahead of the playhead, so
+   * the near zone can be skipped — but nothing ever covered it at a cold start
+   * (feature on, new session, a big seek landing): its cues would never be
+   * requested at all, leaving translationOnly blank for the whole lead. The
+   * first window of each such stretch reaches down to the playhead instead.
+   */
+  private nearZonePending = true
+  /**
    * Backstop timer for the video-event-driven ticks. `timeupdate` only fires
    * while the playhead moves, so a paused player, a stalled round or the
    * 5-second error state would otherwise leave the look-ahead window unfed —
@@ -82,6 +91,7 @@ export class TranslationCoordinator {
     if (!video) return
 
     this.active = true
+    this.nearZonePending = true
     this.attachVideoListeners(video)
     this.startTickTimer()
 
@@ -174,6 +184,9 @@ export class TranslationCoordinator {
     this.invalidateStaleStarts(this.translatedStarts, byStart)
     this.invalidateStaleStarts(this.translatingStarts, byStart)
     this.invalidateStaleStarts(this.failedStarts, byStart)
+    // A recut can land new cue identities inside the near zone; re-fetch it so
+    // they are requested instead of being skipped for the rest of the session.
+    this.nearZonePending = true
 
     this.handleTranslationTick()
   }
@@ -226,6 +239,11 @@ export class TranslationCoordinator {
     // measure the jump against the pre-seek playhead, then consume the snapshot.
     const seekJumpMs = this.seekFromMs !== null ? currentTimeMs - this.seekFromMs : null
     this.seekFromMs = null
+    // A big seek (either direction) can land in a stretch whose near zone no
+    // earlier window ever covered — re-fetch it like a cold start.
+    if (seekJumpMs !== null && Math.abs(seekJumpMs) >= MIN_SEEK_JUMP_MS) {
+      this.nearZonePending = true
+    }
 
     this.translateNearby(currentTimeMs, seekJumpMs)
     this.lastTickTimeMs = currentTimeMs
@@ -265,17 +283,19 @@ export class TranslationCoordinator {
       latestStart = Math.max(latestStart, currentTimeMs + prefetchMs)
     }
     // The near zone: a cue closer than TRANSLATE_LEAD_MS to the playhead cannot
-    // finish translating before it is read, so requesting it — at feature start
-    // or right after landing a seek — only pays for a translation that arrives
-    // after the line has already been shown. The window therefore starts a lead
-    // ahead of the playhead and lets those near cues play in the source language
-    // (every cue beyond them was already requested back when it still had the
-    // lead's worth of runway). A look-ahead that does not clear the lead is an
-    // explicit on-demand setting (0 = "current line only"); it keeps the old
-    // window — cue under the playhead included — so such configs still translate.
+    // finish translating before it is read, so requesting it in steady state
+    // only pays for a translation that arrives after the line has already been
+    // shown. The window therefore starts a lead ahead of the playhead and lets
+    // those near cues play in the source language (every cue beyond them was
+    // already requested back when it still had the lead's worth of runway) —
+    // except while `nearZonePending`, when nothing ever covered the near zone
+    // and the window reaches down to the playhead. A look-ahead that does not
+    // clear the lead is an explicit on-demand setting (0 = "current line only");
+    // it keeps the old window — cue under the playhead included — so such
+    // configs still translate.
     const activeCue = findActiveCue(fragments, currentTimeMs)
     const earliestStart =
-      lookAheadMs > TRANSLATE_LEAD_MS
+      lookAheadMs > TRANSLATE_LEAD_MS && !this.nearZonePending
         ? currentTimeMs + TRANSLATE_LEAD_MS
         : activeCue
           ? activeCue.start
@@ -308,6 +328,8 @@ export class TranslationCoordinator {
       this.translatingStarts.add(f.start)
       this.rememberIdentity(f)
     })
+    // First window of this stretch booked — steady-state lead skipping applies again.
+    this.nearZonePending = false
 
     // Fire-and-forget: the tick loop must not wait on this round's requests, or a
     // pending sub-minItemsPerBatch batch in the queue could never absorb later arrivals.

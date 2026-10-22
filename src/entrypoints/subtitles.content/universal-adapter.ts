@@ -6,7 +6,6 @@ import {
   HIDE_NATIVE_CAPTIONS_STYLE_ID,
   NAVIGATION_HANDLER_DELAY,
   SUBTITLES_SOURCE,
-  SUMMARY_WAIT_TIMEOUT_MS,
   TRANSLATE_BUTTON_CONTAINER_ID,
 } from "@/utils/constants/subtitles"
 import { getDocumentDescription } from "@/utils/content/metadata"
@@ -26,7 +25,7 @@ import {
 import { downloadSubtitlesAsSrt } from "@/utils/subtitles/srt"
 import { showSubtitlesErrorToast } from "@/utils/subtitles/toast"
 import type { SubtitlesFragment } from "@/utils/subtitles/types"
-import { replaceFragmentWindow, sleep } from "@/utils/subtitles/utils"
+import { replaceFragmentWindow } from "@/utils/subtitles/utils"
 import {
   adPlayingAtom,
   currentTimeMsAtom,
@@ -720,11 +719,13 @@ export class UniversalVideoAdapter implements SubtitlesProvidersAdapter {
       onStateChange: (state, data) => scheduler.setState(state, data),
     })
 
-    // Kick the summary before starting translation and wait for it briefly, so the
-    // first translated batch lands in the same cache-key generation as the rest of
-    // the video (the hash covers the summary). The source track published above is
-    // already on screen, so the bounded wait only ever delays translated cues, and
-    // only in content-aware mode — with it off the summary resolves immediately.
+    // Kick the summary and start translating immediately: the summary only
+    // enriches the prompt, and even the bounded wait used to delay the first
+    // request by up to five seconds on every cold start — blank screen time in
+    // translationOnly mode. Whenever the summary lands it is injected into
+    // the shared videoContext reference, so every later batch's prompt picks it
+    // up; cues translated before that were hashed without it and stay
+    // consistent through the cache.
     const coordinator = this.translationCoordinator
     const summaryContextHash = buildSubtitlesSummaryContextHash(
       videoContext,
@@ -736,24 +737,11 @@ export class UniversalVideoAdapter implements SubtitlesProvidersAdapter {
       ? fetchSubtitlesSummary(videoContext).catch(() => null)
       : Promise.resolve(null)
 
-    const summary = await Promise.race([
-      summaryPromise,
-      sleep(SUMMARY_WAIT_TIMEOUT_MS).then(() => null),
-    ])
-    // A superseded switch or navigation replaced the session while we waited.
-    if (this.translationCoordinator !== coordinator) {
-      return
-    }
-    if (summary) {
-      videoContext.summary = summary
-    }
-
     coordinator.start(videoContext)
 
-    // A summary that outlasted the wait still benefits every later batch.
-    void summaryPromise.then((lateSummary) => {
-      if (lateSummary && this.subtitlesSummaryContextHash === summaryContextHash) {
-        videoContext.summary = lateSummary
+    void summaryPromise.then((summary) => {
+      if (summary && this.subtitlesSummaryContextHash === summaryContextHash) {
+        videoContext.summary = summary
       }
     })
   }
