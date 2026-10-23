@@ -121,6 +121,46 @@ export default defineConfig({
       const entrypoint = entrypoints.length === 1 ? entrypoints[0] : undefined
       if (entrypoint?.type !== "content-script") return
 
+      // Content scripts are IIFE bundles that statically inline every dependency,
+      // so each entrypoint pays full react-dom (~170KB minified) even though its
+      // UI is a small overlay. Swap React for Preact in content-script builds
+      // only — options/popup keep real react-dom. `react` points at
+      // src/shims/react.ts (preact/compat re-exported, plus an <Activity>
+      // replacement) rather than preact/compat directly, because preact has no
+      // Activity equivalent.
+      //
+      // Order matters: Vite string aliases match subpath imports too
+      // (`react/jsx-runtime` starts with `react`), so the specific entry points
+      // must be listed before the general module names they extend.
+      const preactAliases: Array<{ find: string; replacement: string }> = [
+        { find: "react/jsx-runtime", replacement: "preact/compat/jsx-runtime" },
+        {
+          find: "react/jsx-dev-runtime",
+          replacement: "preact/compat/jsx-dev-runtime",
+        },
+        { find: "react-dom/client", replacement: "preact/compat/client" },
+        { find: "react-dom", replacement: "preact/compat" },
+        {
+          find: "react",
+          replacement: path.resolve(__dirname, "src/shims/react.ts"),
+        },
+      ]
+      viteConfig.resolve ??= {}
+      const existingAlias = viteConfig.resolve.alias
+      if (Array.isArray(existingAlias)) {
+        existingAlias.push(...preactAliases)
+      } else {
+        viteConfig.resolve.alias = [
+          ...(existingAlias
+            ? Object.entries(existingAlias).map(([find, replacement]) => ({
+                find,
+                replacement,
+              }))
+            : []),
+          ...preactAliases,
+        ]
+      }
+
       const output = viteConfig.build?.rollupOptions?.output
       if (!output) return
 
@@ -142,6 +182,7 @@ export default defineConfig({
   },
   vite: (configEnv) => ({
     build: {
+      sourcemap: process.env.WXT_SOURCEMAP === "true",
       // Vite's module-preload helper exists to serve document-based lazy
       // loading: it injects <link rel=modulepreload> into the DOM and reports
       // failures via `window.dispatchEvent`. That machinery is meaningless and

@@ -55,6 +55,7 @@
     "entities": "^8.0.0",
     "jotai": "^2.20.2",
     "jotai-family": "^1.1.0",
+    "preact": "^11.0.2",
     "prismjs": "^1.30.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
