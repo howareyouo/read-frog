@@ -152,18 +152,15 @@ export default defineConfig({
       modulePreload: false,
     },
     resolve: {
-      // CodeMirror breaks with "Unrecognized extension value in extension set"
-      // if the bundle contains more than one copy of these packages (#1782).
-      dedupe: [
-        "@codemirror/state",
-        "@codemirror/view",
-        "@codemirror/language",
-        "@codemirror/lint",
-        "@codemirror/autocomplete",
-        "@codemirror/search",
-        "@codemirror/commands",
-        "@lezer/common",
-      ],
+      alias: {
+        // react-simple-code-editor ships only a CJS build whose
+        // `exports.default = Editor` + `__esModule` shape trips rolldown's
+        // node-mode CJS interop: the default import resolves to the whole
+        // exports object, which React then rejects with error #130
+        // ("element type is invalid: got object"). Aliasing to the package's
+        // bundled TS source sidesteps the interop entirely.
+        "react-simple-code-editor": "react-simple-code-editor/src/index.tsx",
+      },
     },
     plugins: [
       // Prune zod's 50+ bundled locale error maps down to `en` (see function

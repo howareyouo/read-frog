@@ -1,6 +1,5 @@
-import { Icon } from "@iconify/react"
-import { deepmerge } from "deepmerge-ts"
 import { useAtom } from "jotai"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import { Card } from "@/components/ui/base-ui/card"
 import { Label } from "@/components/ui/base-ui/label"
@@ -14,6 +13,7 @@ import {
 } from "@/utils/constants/subtitles"
 import type { I18nKey } from "@/utils/i18n"
 import { i18n } from "@/utils/i18n"
+import { deepmerge } from "@/utils/merge"
 import { SubtitlesTextStyleForm } from "./subtitles-text-style-form"
 
 /**

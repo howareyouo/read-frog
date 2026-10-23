@@ -1,4 +1,3 @@
-import { QueryClientProvider } from "@tanstack/react-query"
 import { kebabCase } from "case-anything"
 import { Provider as JotaiProvider } from "jotai"
 import ReactDOM from "react-dom/client"
@@ -12,11 +11,9 @@ import { ComposeProviders } from "@/utils/compose-providers"
 import { APP_NAME } from "@/utils/constants/app"
 import { initI18n } from "@/utils/i18n"
 import { LocaleBoundary } from "@/utils/i18n/locale-boundary"
-import { ensureIconifyBackgroundFetch } from "@/utils/iconify/setup-background-fetch"
 import { protectSelectAllShadowRoot } from "@/utils/select-all"
 import { insertShadowRootUIWrapperInto, OVERLAY_SHADOW_ROOT_CSS } from "@/utils/shadow-root"
 import { clearEffectiveSiteControlUrl } from "@/utils/site-control"
-import { queryClient } from "@/utils/tanstack-query"
 import { getLocalThemeMode } from "@/utils/theme"
 import App from "./app"
 import { setupExternalSelectionSource } from "./external-selection-source"
@@ -31,8 +28,6 @@ declare global {
 }
 
 async function mountSelectionUI(ctx: ContentScriptContext) {
-  ensureIconifyBackgroundFetch()
-
   const themeMode = await getLocalThemeMode()
 
   const ui = await createShadowRootUi(ctx, {
@@ -49,9 +44,6 @@ async function mountSelectionUI(ctx: ContentScriptContext) {
       root.render(
         <ComposeProviders
           providers={[
-            (children) => (
-              <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-            ),
             (children) => <JotaiProvider>{children}</JotaiProvider>,
             (children) => (
               <ConfigHydrateProvider themeMode={themeMode}>{children}</ConfigHydrateProvider>

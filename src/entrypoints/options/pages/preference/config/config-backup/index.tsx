@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react/dist/iconify.js"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useAtomValue } from "jotai"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import {
   Empty,

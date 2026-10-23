@@ -5,10 +5,11 @@
  * the page rather than here, because the preview above renders from it live and the preset dropdown
  * writes into it. Saving is still explicit — a stylesheet is worth committing on purpose.
  */
-import { deepmerge } from "deepmerge-ts"
+
 import { useAtom } from "jotai"
 import { CustomCssEditor } from "@/entrypoints/options/components/custom-css-editor"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
+import { deepmerge } from "@/utils/merge"
 
 const I18N_PREFIX = "options.videoSubtitles.style.customCSS.editor"
 

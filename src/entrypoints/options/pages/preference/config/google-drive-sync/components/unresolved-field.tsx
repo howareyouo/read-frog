@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import { dequal } from "dequal"
 import type { CSSProperties } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import { useConflictField } from "@/hooks/use-unresolved-field"
 import { i18n } from "@/utils/i18n"

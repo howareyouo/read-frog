@@ -2,7 +2,6 @@ import { Menu } from "@base-ui/react/menu"
 import { NumberField } from "@base-ui/react/number-field"
 import { Popover } from "@base-ui/react/popover"
 import { IconChevronDown, IconColorPicker, IconX } from "@tabler/icons-react"
-import { AnimatePresence, domAnimation, LazyMotion, m } from "motion/react"
 import type { CSSProperties, HTMLAttributes, ReactNode, Ref } from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import type { SliderValue } from "@/components/ui/base-ui/slider"
@@ -14,7 +13,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/base-ui/tooltip"
 import { useProximityHover } from "@/hooks/use-proximity-hover"
-import { spring } from "@/utils/styles/springs"
 import { cn } from "@/utils/styles/utils"
 
 /**
@@ -601,66 +599,65 @@ function SaturationSquare({ h, s, v, onChange }: SaturationSquareProps) {
   const thumbColor = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`
 
   return (
-    <LazyMotion features={domAnimation}>
+    <div
+      ref={ref}
+      role="application"
+      aria-label="Saturation and brightness"
+      tabIndex={0}
+      onFocus={(e) => {
+        if (e.currentTarget.matches(":focus-visible")) setFocused(true)
+      }}
+      onBlur={() => setFocused(false)}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => {
+        setHovered(false)
+        setCursorPos(null)
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={() => setDragging(false)}
+      onKeyDown={onKeyDown}
+      className={cn(
+        "relative w-full cursor-none touch-none outline-none select-none",
+        SHAPE.bg,
+        focused && "ring-2 ring-ring",
+      )}
+      style={{ height: SQUARE_HEIGHT }}
+    >
       <div
-        ref={ref}
-        role="application"
-        aria-label="Saturation and brightness"
-        tabIndex={0}
-        onFocus={(e) => {
-          if (e.currentTarget.matches(":focus-visible")) setFocused(true)
+        className={cn("absolute inset-0 overflow-hidden", SHAPE.bg)}
+        style={{
+          background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h}, 100%, 50%))`,
         }}
-        onBlur={() => setFocused(false)}
-        onPointerEnter={() => setHovered(true)}
-        onPointerLeave={() => {
-          setHovered(false)
-          setCursorPos(null)
+      />
+      <div
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          left: `${s * 100}%`,
+          top: `${(1 - v) * 100}%`,
+          width: 18,
+          height: 18,
+          transform: "translate(-50%, -50%)",
+          border: "1px solid white",
+          boxShadow: "0 0 0 1px rgba(0,0,0,1)",
+          backgroundColor: thumbColor,
         }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={() => setDragging(false)}
-        onKeyDown={onKeyDown}
-        className={cn(
-          "relative w-full cursor-none touch-none outline-none select-none",
-          SHAPE.bg,
-          focused && "ring-2 ring-ring",
-        )}
-        style={{ height: SQUARE_HEIGHT }}
-      >
+      />
+      {hovered && !dragging && cursorPos && (
         <div
-          className={cn("absolute inset-0 overflow-hidden", SHAPE.bg)}
-          style={{
-            background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h}, 100%, 50%))`,
-          }}
-        />
-        <m.div
           className="pointer-events-none absolute rounded-full"
-          initial={false}
-          animate={{ left: `${s * 100}%`, top: `${(1 - v) * 100}%`, width: 18, height: 18 }}
-          transition={{ duration: 0 }}
           style={{
+            left: `${cursorPos.x}%`,
+            top: `${cursorPos.y}%`,
+            width: 18,
+            height: 18,
             transform: "translate(-50%, -50%)",
-            border: "1px solid white",
-            boxShadow: "0 0 0 1px rgba(0,0,0,1)",
-            backgroundColor: thumbColor,
+            border: "2px solid rgba(255, 255, 255, 0.55)",
+            boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.2)",
           }}
         />
-        {hovered && !dragging && cursorPos && (
-          <div
-            className="pointer-events-none absolute rounded-full"
-            style={{
-              left: `${cursorPos.x}%`,
-              top: `${cursorPos.y}%`,
-              width: 18,
-              height: 18,
-              transform: "translate(-50%, -50%)",
-              border: "2px solid rgba(255, 255, 255, 0.55)",
-              boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.2)",
-            }}
-          />
-        )}
-      </div>
-    </LazyMotion>
+      )}
+    </div>
   )
 }
 
@@ -743,8 +740,7 @@ function AlphaSlider({
 //
 // Base UI's Menu owns trigger wiring, positioning, dismissal, roving highlight and
 // typeahead; RadioGroup/RadioItem carry the radio semantics. This layer adds the
-// proximity-hover overlays and the spring open/close animation, releasing Base UI's
-// deferred unmount only once the exit tween has played (same pattern as select.tsx).
+// proximity-hover overlays and the CSS pop-in animation.
 // ---------------------------------------------------------------------------
 
 const FORMAT_LABELS: Record<ColorFormat, string> = {
@@ -835,7 +831,6 @@ function FormatDropdown({
   const [internalOpen, setInternalOpen] = useState(defaultOpen)
   const isControlled = openProp !== undefined
   const open = isControlled ? openProp : internalOpen
-  const actionsRef = useRef<{ unmount: () => void; close: () => void }>(null)
   const portalContainer = useContext(ColorPickerPortalContainerContext)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -850,15 +845,6 @@ function FormatDropdown({
   } = useProximityHover(containerRef)
 
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
-
-  // Release Base UI's deferred unmount once the exit tween has played. onAnimationComplete
-  // is the primary signal; this timeout is the fallback for throttled tabs where rAF-driven
-  // animation callbacks stall (spring.fast.exit is 60ms — 120ms covers it with margin).
-  useEffect(() => {
-    if (open) return undefined
-    const id = setTimeout(() => actionsRef.current?.unmount(), 120)
-    return () => clearTimeout(id)
-  }, [open])
 
   // Measure once the popup has mounted: first frame waits for React's commit, second for layout.
   useEffect(() => {
@@ -883,175 +869,147 @@ function FormatDropdown({
   )
 
   return (
-    <LazyMotion features={domAnimation}>
-      <Menu.Root
-        open={open}
-        onOpenChange={(next) => {
-          if (!isControlled) setInternalOpen(next)
-        }}
-        actionsRef={actionsRef}
-        // Non-modal: the page keeps scrolling and the Positioner tracks the anchor, so the
-        // popup follows its trigger instead of detaching.
-        modal={false}
+    <Menu.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!isControlled) setInternalOpen(next)
+      }}
+      // Non-modal: the page keeps scrolling and the Positioner tracks the anchor, so the
+      // popup follows its trigger instead of detaching.
+      modal={false}
+    >
+      <Menu.Trigger
+        className={cn(
+          "flex cursor-pointer items-center justify-between gap-2 px-3 text-[13px] font-medium hover:bg-accent hover:text-foreground",
+          CONTROL_CLASS,
+          SHAPE.input,
+          open ? "bg-accent text-foreground" : "text-muted-foreground active:bg-accent",
+        )}
       >
-        <Menu.Trigger
+        <span>{FORMAT_LABELS[value]}</span>
+        <IconChevronDown
           className={cn(
-            "flex cursor-pointer items-center justify-between gap-2 px-3 text-[13px] font-medium hover:bg-accent hover:text-foreground",
-            CONTROL_CLASS,
-            SHAPE.input,
-            open ? "bg-accent text-foreground" : "text-muted-foreground active:bg-accent",
+            "size-3.5 text-muted-foreground transition-transform duration-150",
+            open && "rotate-180",
           )}
-        >
-          <span>{FORMAT_LABELS[value]}</span>
-          <IconChevronDown
-            className={cn(
-              "size-3.5 text-muted-foreground transition-transform duration-150",
-              open && "rotate-180",
-            )}
-          />
-        </Menu.Trigger>
-        <Menu.Portal container={portalContainer ?? undefined}>
-          {/* pointer-events-auto: content-script hosts are click-through at the root so the
+        />
+      </Menu.Trigger>
+      <Menu.Portal container={portalContainer ?? undefined}>
+        {/* pointer-events-auto: content-script hosts are click-through at the root so the
             page stays usable, and a portalled layer has to opt back in to receive events. */}
-          <Menu.Positioner
-            side="bottom"
-            align="start"
-            sideOffset={6}
-            className="pointer-events-auto z-60 outline-none"
-          >
-            <m.div
-              initial={{ opacity: 0, y: -4, scaleY: 0.96 }}
-              animate={open ? { opacity: 1, y: 0, scaleY: 1 } : { opacity: 0, y: -4, scaleY: 0.96 }}
-              transition={open ? spring.fast : spring.fast.exit}
-              style={{ transformOrigin: "top center" }}
-              onAnimationComplete={() => {
-                if (!open) actionsRef.current?.unmount()
-              }}
-            >
-              <FormatMenuContext value={menuCtx}>
-                <Menu.Popup
-                  ref={containerRef}
-                  data-slot="color-picker-format-content"
-                  onMouseEnter={() => {
-                    handlers.onMouseEnter()
-                    setFocusedIndex(null)
-                  }}
-                  onMouseMove={handlers.onMouseMove}
-                  onMouseLeave={handlers.onMouseLeave}
-                  onFocus={(e) => {
-                    const indexAttr = (e.target as HTMLElement)
-                      .closest("[data-proximity-index]")
-                      ?.getAttribute("data-proximity-index")
-                    // Index 0 is falsy, so this has to be an explicit nullish check.
-                    if (indexAttr === null || indexAttr === undefined) return
-                    const idx = Number(indexAttr)
-                    setActiveIndex(idx)
-                    setFocusedIndex(
-                      (e.target as HTMLElement).matches(":focus-visible") ? idx : null,
-                    )
-                  }}
-                  onBlur={(e) => {
-                    if (containerRef.current?.contains(e.relatedTarget)) return
-                    setFocusedIndex(null)
-                    setActiveIndex(null)
-                  }}
-                  className={cn(
-                    "relative flex min-w-[var(--anchor-width)] flex-col gap-0.5 border bg-popover p-1 shadow-md outline-none select-none",
-                    SHAPE.container,
-                  )}
-                >
-                  {/* Selected background */}
-                  <AnimatePresence>
-                    {checkedRect && (
-                      <m.div
-                        className={cn("pointer-events-none absolute", SHAPE.bg, SELECTED_TINT)}
-                        initial={false}
-                        animate={{
-                          top: checkedRect.top,
-                          left: checkedRect.left,
-                          width: checkedRect.width,
-                          height: checkedRect.height,
-                          opacity: 1,
-                        }}
-                        exit={{ opacity: 0, transition: spring.moderate.exit }}
-                        transition={{ ...spring.moderate, opacity: { duration: 0.08 } }}
-                      />
+        <Menu.Positioner
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          className="pointer-events-auto z-60 outline-none"
+        >
+          <div className="animate-rf-pop-in" style={{ transformOrigin: "top center" }}>
+            <FormatMenuContext value={menuCtx}>
+              <Menu.Popup
+                ref={containerRef}
+                data-slot="color-picker-format-content"
+                onMouseEnter={() => {
+                  handlers.onMouseEnter()
+                  setFocusedIndex(null)
+                }}
+                onMouseMove={handlers.onMouseMove}
+                onMouseLeave={handlers.onMouseLeave}
+                onFocus={(e) => {
+                  const indexAttr = (e.target as HTMLElement)
+                    .closest("[data-proximity-index]")
+                    ?.getAttribute("data-proximity-index")
+                  // Index 0 is falsy, so this has to be an explicit nullish check.
+                  if (indexAttr === null || indexAttr === undefined) return
+                  const idx = Number(indexAttr)
+                  setActiveIndex(idx)
+                  setFocusedIndex((e.target as HTMLElement).matches(":focus-visible") ? idx : null)
+                }}
+                onBlur={(e) => {
+                  if (containerRef.current?.contains(e.relatedTarget)) return
+                  setFocusedIndex(null)
+                  setActiveIndex(null)
+                }}
+                className={cn(
+                  "relative flex min-w-[var(--anchor-width)] flex-col gap-0.5 border bg-popover p-1 shadow-md outline-none select-none",
+                  SHAPE.container,
+                )}
+              >
+                {/* Selected background */}
+                {checkedRect && (
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute transition-[top,left,width,height] duration-150",
+                      SHAPE.bg,
+                      SELECTED_TINT,
                     )}
-                  </AnimatePresence>
+                    style={{
+                      top: checkedRect.top,
+                      left: checkedRect.left,
+                      width: checkedRect.width,
+                      height: checkedRect.height,
+                    }}
+                  />
+                )}
 
-                  {/* Hover background — keyed per pointer session so it fades in at the
+                {/* Hover background — keyed per pointer session so it fades in at the
                     selected row rather than sliding from wherever it last sat. */}
-                  <AnimatePresence>
-                    {activeRect && (
-                      <m.div
-                        key={sessionRef.current}
-                        className={cn("pointer-events-none absolute", SHAPE.bg, HOVER_TINT)}
-                        initial={{
-                          opacity: 0,
-                          top: checkedRect?.top ?? activeRect.top,
-                          left: checkedRect?.left ?? activeRect.left,
-                          width: checkedRect?.width ?? activeRect.width,
-                          height: checkedRect?.height ?? activeRect.height,
-                        }}
-                        animate={{
-                          opacity: 1,
-                          top: activeRect.top,
-                          left: activeRect.left,
-                          width: activeRect.width,
-                          height: activeRect.height,
-                        }}
-                        exit={{ opacity: 0, transition: spring.fast.exit }}
-                        transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
-                      />
+                {activeRect && (
+                  <div
+                    key={sessionRef.current}
+                    className={cn(
+                      "pointer-events-none absolute animate-rf-fade-in transition-[top,left,width,height] duration-150",
+                      SHAPE.bg,
+                      HOVER_TINT,
                     )}
-                  </AnimatePresence>
+                    style={{
+                      top: activeRect.top,
+                      left: activeRect.left,
+                      width: activeRect.width,
+                      height: activeRect.height,
+                    }}
+                  />
+                )}
 
-                  {/* Focus ring */}
-                  <AnimatePresence>
-                    {focusRect && (
-                      <m.div
-                        className={cn(
-                          "pointer-events-none absolute z-20 border border-ring",
-                          SHAPE.focusRing,
-                        )}
-                        initial={false}
-                        animate={{
-                          left: focusRect.left - 2,
-                          top: focusRect.top - 2,
-                          width: focusRect.width + 4,
-                          height: focusRect.height + 4,
-                        }}
-                        exit={{ opacity: 0, transition: spring.fast.exit }}
-                        transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
-                      />
+                {/* Focus ring */}
+                {focusRect && (
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute z-20 border border-ring transition-[top,left,width,height] duration-150",
+                      SHAPE.focusRing,
                     )}
-                  </AnimatePresence>
+                    style={{
+                      left: focusRect.left - 2,
+                      top: focusRect.top - 2,
+                      width: focusRect.width + 4,
+                      height: focusRect.height + 4,
+                    }}
+                  />
+                )}
 
-                  {/* display: contents keeps items direct flex children of the popup, so
+                {/* display: contents keeps items direct flex children of the popup, so
                     proximity measurement and gap layout still work while the group
                     provides the radio value context. */}
-                  <Menu.RadioGroup
-                    value={value}
-                    onValueChange={(next) => onChange(next as ColorFormat)}
-                    className="contents"
-                  >
-                    {FORMATS.map((fmt, i) => (
-                      <FormatItem
-                        key={fmt}
-                        index={i}
-                        value={fmt}
-                        label={FORMAT_LABELS[fmt]}
-                        checked={value === fmt}
-                      />
-                    ))}
-                  </Menu.RadioGroup>
-                </Menu.Popup>
-              </FormatMenuContext>
-            </m.div>
-          </Menu.Positioner>
-        </Menu.Portal>
-      </Menu.Root>
-    </LazyMotion>
+                <Menu.RadioGroup
+                  value={value}
+                  onValueChange={(next) => onChange(next as ColorFormat)}
+                  className="contents"
+                >
+                  {FORMATS.map((fmt, i) => (
+                    <FormatItem
+                      key={fmt}
+                      index={i}
+                      value={fmt}
+                      label={FORMAT_LABELS[fmt]}
+                      checked={value === fmt}
+                    />
+                  ))}
+                </Menu.RadioGroup>
+              </Menu.Popup>
+            </FormatMenuContext>
+          </div>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   )
 }
 
@@ -1940,8 +1898,7 @@ function ColorInputsRow({
 // ColorPickerPopover (trigger button + popover panel)
 //
 // Base UI's Popover owns positioning (anchor tracking + collision flipping), dismissal and
-// focus management. The spring open/close survives via the same deferred-unmount pattern
-// the format menu uses.
+// focus management. The panel opens with a CSS pop-in animation.
 // ---------------------------------------------------------------------------
 
 function ColorPickerPopover({
@@ -1960,7 +1917,6 @@ function ColorPickerPopover({
   const isOpenControlled = openProp !== undefined
   const [internalOpen, setInternalOpen] = useState(defaultOpen)
   const open = isOpenControlled ? openProp : internalOpen
-  const actionsRef = useRef<{ unmount: () => void; close: () => void }>(null)
   const [panelEl, setPanelEl] = useState<HTMLDivElement | null>(null)
   // The popover itself mounts into the ambient container (a shadow root, in content
   // scripts); layers inside the panel re-anchor to the panel below.
@@ -1989,14 +1945,6 @@ function ColorPickerPopover({
     [isControlled, onPickerValueChange],
   )
 
-  // Release Base UI's deferred unmount once the exit tween has played; the timeout is the
-  // fallback for throttled tabs (spring.moderate.exit is 120ms — 150ms covers it).
-  useEffect(() => {
-    if (open) return undefined
-    const id = setTimeout(() => actionsRef.current?.unmount(), 150)
-    return () => clearTimeout(id)
-  }, [open])
-
   const parsed = useMemo(() => parseColor(currentValue), [currentValue])
   const swatchColor = parsed ? rgbToHexStr(parsed.r, parsed.g, parsed.b, parsed.a) : currentValue
   const valueLabel = parsed
@@ -2004,94 +1952,81 @@ function ColorPickerPopover({
     : currentValue
 
   return (
-    <LazyMotion features={domAnimation}>
-      <Popover.Root
-        open={open}
-        onOpenChange={handleOpenChange}
-        actionsRef={actionsRef}
-        // Non-modal: the page keeps scrolling and the Positioner tracks the anchor, so the
-        // panel follows its trigger instead of detaching.
-        modal={false}
-      >
-        <div ref={ref} className="inline-flex">
-          <Popover.Trigger
-            className={cn(
-              "flex cursor-pointer items-center gap-2 border border-border px-2 text-[13px] font-medium hover:bg-accent",
-              CONTROL_CLASS,
-              SHAPE.input,
-              triggerClassName,
-            )}
-          >
-            {triggerLabel && triggerLabelPosition === "left" && (
-              <span className="px-1 text-muted-foreground select-none">{triggerLabel}</span>
-            )}
-            <ColorTile color={swatchColor} size={20} />
-            {triggerShowValue && <span className="text-foreground tabular-nums">{valueLabel}</span>}
-            {triggerLabel && triggerLabelPosition === "right" && (
-              <span className="px-1 text-muted-foreground select-none">{triggerLabel}</span>
-            )}
-            {triggerShowRemove && (
-              <span
-                role="button"
-                aria-label="Remove color"
-                tabIndex={0}
-                onClick={(e) => {
+    <Popover.Root
+      open={open}
+      onOpenChange={handleOpenChange}
+      // Non-modal: the page keeps scrolling and the Positioner tracks the anchor, so the
+      // panel follows its trigger instead of detaching.
+      modal={false}
+    >
+      <div ref={ref} className="inline-flex">
+        <Popover.Trigger
+          className={cn(
+            "flex cursor-pointer items-center gap-2 border border-border px-2 text-[13px] font-medium hover:bg-accent",
+            CONTROL_CLASS,
+            SHAPE.input,
+            triggerClassName,
+          )}
+        >
+          {triggerLabel && triggerLabelPosition === "left" && (
+            <span className="px-1 text-muted-foreground select-none">{triggerLabel}</span>
+          )}
+          <ColorTile color={swatchColor} size={20} />
+          {triggerShowValue && <span className="text-foreground tabular-nums">{valueLabel}</span>}
+          {triggerLabel && triggerLabelPosition === "right" && (
+            <span className="px-1 text-muted-foreground select-none">{triggerLabel}</span>
+          )}
+          {triggerShowRemove && (
+            <span
+              role="button"
+              aria-label="Remove color"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation()
+                onTriggerRemove?.()
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
                   e.stopPropagation()
+                  e.preventDefault()
                   onTriggerRemove?.()
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation()
-                    e.preventDefault()
-                    onTriggerRemove?.()
-                  }
-                }}
-                className="ml-1 flex cursor-pointer items-center text-muted-foreground hover:text-foreground"
-              >
-                <IconX className="size-3.5" />
-              </span>
-            )}
-          </Popover.Trigger>
-          <Popover.Portal container={outerContainer ?? undefined}>
-            {/* pointer-events-auto: see the format menu's positioner — the subtitles panel's
-              shadow host is pointer-events:none so clicks fall through to the video. */}
-            <Popover.Positioner
-              side="bottom"
-              align="start"
-              sideOffset={6}
-              className="pointer-events-auto z-50 outline-none"
-            >
-              <m.div
-                initial={{ opacity: 0, y: -4, scaleY: 0.96 }}
-                animate={
-                  open ? { opacity: 1, y: 0, scaleY: 1 } : { opacity: 0, y: -4, scaleY: 0.96 }
                 }
-                transition={open ? spring.moderate : spring.moderate.exit}
-                style={{ transformOrigin: "top left" }}
-                onAnimationComplete={() => {
-                  if (!open) actionsRef.current?.unmount()
-                }}
+              }}
+              className="ml-1 flex cursor-pointer items-center text-muted-foreground hover:text-foreground"
+            >
+              <IconX className="size-3.5" />
+            </span>
+          )}
+        </Popover.Trigger>
+        <Popover.Portal container={outerContainer ?? undefined}>
+          {/* pointer-events-auto: see the format menu's positioner — the subtitles panel's
+              shadow host is pointer-events:none so clicks fall through to the video. */}
+          <Popover.Positioner
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            className="pointer-events-auto z-50 outline-none"
+          >
+            <div className="animate-rf-pop-in" style={{ transformOrigin: "top left" }}>
+              <Popover.Popup
+                ref={setPanelEl}
+                data-slot="color-picker-content"
+                className="outline-none"
               >
-                <Popover.Popup
-                  ref={setPanelEl}
-                  data-slot="color-picker-content"
-                  className="outline-none"
-                >
-                  <ColorPickerPortalContainer value={panelEl}>
-                    <ColorPicker
-                      {...pickerProps}
-                      value={currentValue}
-                      onValueChange={handleValueChange}
-                      className={cn("shadow-lg", pickerProps.className)}
-                    />
-                  </ColorPickerPortalContainer>
-                </Popover.Popup>
-              </m.div>
-            </Popover.Positioner>
-          </Popover.Portal>
-        </div>
-      </Popover.Root>
-    </LazyMotion>
+                <ColorPickerPortalContainer value={panelEl}>
+                  <ColorPicker
+                    {...pickerProps}
+                    value={currentValue}
+                    onValueChange={handleValueChange}
+                    className={cn("shadow-lg", pickerProps.className)}
+                  />
+                </ColorPickerPortalContainer>
+              </Popover.Popup>
+            </div>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </div>
+    </Popover.Root>
   )
 }
 

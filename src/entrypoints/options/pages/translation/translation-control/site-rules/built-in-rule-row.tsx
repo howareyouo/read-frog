@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import { useAtom } from "jotai"
 import { useContext, useEffect, useRef, useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Badge } from "@/components/ui/base-ui/badge"
 import { Button } from "@/components/ui/base-ui/button"
 import {

@@ -15,7 +15,7 @@ export function mountHostToast(): () => void {
       <div className={NOTRANSLATE_CLASS}>
         {/*
           This context has no page-level React tree, so LocaleBoundary lives at the toast
-          root: it drives i18next.changeLanguage off the config storage watcher (via the
+          root: it drives setUiLanguage off the config storage watcher (via the
           default store's configAtom.onMount), keeping event-time toast strings — e.g.
           translate-text.ts's toastManager.add(...) — in the current UI language.
         */}

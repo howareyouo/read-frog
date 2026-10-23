@@ -1,10 +1,7 @@
 "use client"
 
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
-import type { AnimationPlaybackControls, Transition } from "motion/react"
-import { animate, domAnimation, LazyMotion, m, useMotionValue } from "motion/react"
 import * as React from "react"
-import { spring } from "@/utils/styles/springs"
 import { cn } from "@/utils/styles/utils"
 
 type SwitchSize = "sm" | "default"
@@ -20,8 +17,6 @@ type SwitchProps = Omit<SwitchPrimitive.Root.Props, "onCheckedChange"> & {
    * API compatible with old Radix-based shadcn Switch.
    */
   onCheckedChange?: (checked: boolean) => void
-  /** Overrides the spring the thumb travels on. */
-  thumbTransition?: Transition
 }
 
 /* `track`/`height` are the outer pill, `thumb` the resting circle, `gap` the inset
@@ -46,15 +41,22 @@ const DRAG_DEAD_ZONE = 2
    edge but 1px from the right. */
 const TRACK_BORDER = 1
 
-/* The thumb is driven by a motion value rather than a CSS transition because the
-   pointer can grab it mid-flight: a drag has to pick up wherever the spring
-   currently is, and the release has to spring on from there without a velocity
-   reset. Width/height/y ride the same spring declaratively.
+/* Critical-spring approximation for the thumb travel and squash: lands exactly,
+   no overshoot, in roughly the same time as the old motion spring. */
+const THUMB_EASING = "cubic-bezier(0.32, 0.72, 0, 1)"
+const THUMB_TRANSITION = `transform 160ms ${THUMB_EASING}, width 160ms ${THUMB_EASING}, height 160ms ${THUMB_EASING}`
+
+/* The thumb is driven by plain CSS transitions rather than a motion value: the
+   transform/width/height targets are computed from state each render, and the
+   transition animates between them. A drag disables the transition (inline) and
+   takes over the transform directly, picking up wherever the thumb currently is
+   — read back from `getComputedStyle`, so grabbing the thumb mid-travel never
+   snaps it — and re-enables the transition on release to spring on from there.
 
    It reshapes under the pointer — a pill on hover (thumb/8 wider), a squash on
-   press (thumb/4 wider, thumb/4 shorter). Growing it would push past the track on
-   the checked side, so the extra width is subtracted back out of the resting x,
-   which pins the right edge while the thumb stretches inward. */
+   press (thumb/4 wider, thumb/4 shorter). Growing it would push past the track
+   on the checked side, so the extra width is subtracted back out of the resting
+   x, which pins the right edge while the thumb stretches inward. */
 function Switch({
   className,
   size = "default",
@@ -62,7 +64,6 @@ function Switch({
   defaultChecked,
   disabled = false,
   onCheckedChange,
-  thumbTransition,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -82,41 +83,36 @@ function Switch({
 
   const [hovered, setHovered] = React.useState(false)
   const [pressed, setPressed] = React.useState(false)
+  /* Where a drag has parked the thumb, or null when the thumb sits at its
+     resting position. Non-null also disables the transition, so per-move
+     updates track the finger exactly. */
+  const [dragX, setDragX] = React.useState<number | null>(null)
 
-  const hasMounted = React.useRef(false)
   const dragging = React.useRef(false)
   /* Set on the pointerup that ends a drag and cleared a frame later, so the click
      Base UI synthesises from that same pointerup does not toggle a second time. */
   const didDrag = React.useRef(false)
   const pointerStart = React.useRef<{ clientX: number; originX: number } | null>(null)
-  const travelAnimation = React.useRef<AnimationPlaybackControls | null>(null)
-
-  const x = useMotionValue(isChecked ? inset + travel : inset)
-  const transition = thumbTransition ?? spring.moderate
+  const thumbRef = React.useRef<HTMLSpanElement>(null)
 
   const thumbWidth = pressed ? thumb + pressExtend : hovered ? thumb + pillExtend : thumb
   const thumbHeight = pressed ? thumb - pressExtend : thumb
   const thumbY = pressed ? inset + pressExtend / 2 : inset
-  const restingX = isChecked ? inset + travel - (thumbWidth - thumb) : inset
+  const posX = dragX ?? (isChecked ? inset + travel - (thumbWidth - thumb) : inset)
 
   /* Drag bounds assume the pressed (widest) thumb, since a drag is always pressed. */
   const dragMin = inset
   const dragMax = inset + travel - pressExtend
 
-  React.useEffect(() => {
-    hasMounted.current = true
+  /* The thumb's current animated x — its resting target when idle, or wherever
+     a running transition has actually taken it. */
+  const readThumbX = React.useCallback(() => {
+    const el = thumbRef.current
+    if (!el) return null
+    const transform = getComputedStyle(el).transform
+    if (!transform || transform === "none") return null
+    return new DOMMatrixReadOnly(transform).m41
   }, [])
-
-  React.useEffect(() => {
-    if (dragging.current) return undefined
-    if (!hasMounted.current) {
-      x.set(restingX)
-      return undefined
-    }
-    const controls = animate(x, restingX, transition)
-    travelAnimation.current = controls
-    return () => controls.stop()
-  }, [restingX, x, transition])
 
   const commitChecked = React.useCallback(
     (next: boolean) => {
@@ -141,10 +137,13 @@ function Switch({
       setPressed(true)
       dragging.current = false
       didDrag.current = false
-      pointerStart.current = { clientX: event.clientX, originX: x.get() }
+      pointerStart.current = {
+        clientX: event.clientX,
+        originX: readThumbX() ?? (isChecked ? inset + travel : inset),
+      }
       event.currentTarget.setPointerCapture(event.pointerId)
     },
-    [disabled, onPointerDown, x],
+    [disabled, inset, isChecked, onPointerDown, readThumbX, travel],
   )
 
   const handlePointerMove = React.useCallback(
@@ -155,18 +154,18 @@ function Switch({
       if (!dragging.current) {
         if (Math.abs(delta) < DRAG_DEAD_ZONE) return
         dragging.current = true
-        /* Pressing reshaped the thumb, so a spring toward the pressed resting
-           position is still in flight and would keep overwriting the value we set
-           below. The finger wins: stop it, then re-anchor on wherever the thumb
-           actually is, so tracking starts from the current pixel instead of
-           snapping by the dead zone plus whatever the spring had already moved. */
-        travelAnimation.current?.stop()
-        pointerStart.current = { clientX: event.clientX, originX: x.get() }
+        /* Pressing reshaped the thumb, so its travel transition is still in
+           flight. The finger wins: re-anchor on wherever the thumb actually is,
+           so tracking starts from the current pixel instead of snapping by the
+           dead zone plus whatever the transition had already moved. */
+        const originX = readThumbX() ?? pointerStart.current.originX
+        pointerStart.current = { clientX: event.clientX, originX }
+        setDragX(originX)
         return
       }
-      x.set(Math.max(dragMin, Math.min(dragMax, pointerStart.current.originX + delta)))
+      setDragX(Math.max(dragMin, Math.min(dragMax, pointerStart.current.originX + delta)))
     },
-    [dragMax, dragMin, onPointerMove, x],
+    [dragMax, dragMin, onPointerMove, readThumbX],
   )
 
   const handlePointerUp = React.useCallback(
@@ -180,15 +179,18 @@ function Switch({
       dragging.current = false
       didDrag.current = true
 
-      const shouldBeOn = x.get() > (dragMin + dragMax) / 2
+      const shouldBeOn = (dragX ?? inset) > (dragMin + dragMax) / 2
       if (shouldBeOn !== isChecked) commitChecked(shouldBeOn)
-      else animate(x, isChecked ? inset + travel : inset, transition)
+      /* Clearing dragX re-enables the transition and retargets the transform at
+         the resting position, so the thumb springs on from wherever the drag
+         left it. */
+      setDragX(null)
 
       requestAnimationFrame(() => {
         didDrag.current = false
       })
     },
-    [commitChecked, dragMax, dragMin, inset, isChecked, onPointerUp, transition, travel, x],
+    [commitChecked, dragMax, dragMin, dragX, inset, isChecked, onPointerUp],
   )
 
   const handlePointerCancel = React.useCallback(
@@ -199,68 +201,70 @@ function Switch({
       setPressed(false)
       if (!dragging.current) return
       dragging.current = false
-      animate(x, isChecked ? inset + travel : inset, transition)
+      setDragX(null)
     },
-    [inset, isChecked, onPointerCancel, transition, travel, x],
+    [onPointerCancel],
   )
 
   return (
-    <LazyMotion features={domAnimation}>
-      <SwitchPrimitive.Root
-        data-slot="switch"
-        data-size={size}
-        className={cn(
-          "peer group/switch relative inline-flex shrink-0 cursor-pointer touch-none items-center rounded-full border border-transparent shadow-xs transition-colors duration-100 outline-none select-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-accent-blue focus-visible:ring-[3px] focus-visible:ring-accent-blue/50 aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 dark:focus-visible:ring-accent-blue/60 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-accent-blue data-checked:hover:not-data-disabled:bg-accent-blue-hover data-unchecked:bg-input dark:data-unchecked:bg-input/80 data-disabled:cursor-not-allowed data-disabled:opacity-50",
-          className,
-        )}
-        checked={checked}
-        defaultChecked={defaultChecked}
-        disabled={disabled}
-        onCheckedChange={handleCheckedChange}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
-        onPointerEnter={(event) => {
-          onPointerEnter?.(event)
-          if (event.pointerType === "mouse" && !disabled) setHovered(true)
+    <SwitchPrimitive.Root
+      data-slot="switch"
+      data-size={size}
+      className={cn(
+        "peer group/switch relative inline-flex shrink-0 cursor-pointer touch-none items-center rounded-full border border-transparent shadow-xs transition-colors duration-100 outline-none select-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-accent-blue focus-visible:ring-[3px] focus-visible:ring-accent-blue/50 aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 dark:focus-visible:ring-accent-blue/60 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-accent-blue data-checked:hover:not-data-disabled:bg-accent-blue-hover data-unchecked:bg-input dark:data-unchecked:bg-input/80 data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        className,
+      )}
+      checked={checked}
+      defaultChecked={defaultChecked}
+      disabled={disabled}
+      onCheckedChange={handleCheckedChange}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onPointerEnter={(event) => {
+        onPointerEnter?.(event)
+        if (event.pointerType === "mouse" && !disabled) setHovered(true)
+      }}
+      onPointerLeave={(event) => {
+        onPointerLeave?.(event)
+        setHovered(false)
+      }}
+      {...props}
+      style={{ width: track, height }}
+    >
+      <SwitchPrimitive.Thumb
+        data-slot="switch-thumb"
+        render={(thumbProps) => {
+          /* Base UI forwards drag/animation handler types a plain span has no
+             use for; drop them before spreading. */
+          const {
+            style: baseStyle,
+            onDrag: _onDrag,
+            onDragStart: _onDragStart,
+            onDragEnd: _onDragEnd,
+            onAnimationStart: _onAnimationStart,
+            onAnimationEnd: _onAnimationEnd,
+            onAnimationIteration: _onAnimationIteration,
+            ...rest
+          } = thumbProps as React.HTMLAttributes<HTMLSpanElement>
+          return (
+            <span
+              {...rest}
+              ref={thumbRef}
+              className="pointer-events-none absolute top-0 left-0 block rounded-full bg-white"
+              style={{
+                ...baseStyle,
+                width: thumbWidth,
+                height: thumbHeight,
+                transform: `translate(${posX}px, ${thumbY}px)`,
+                transition: dragX === null ? THUMB_TRANSITION : "none",
+              }}
+            />
+          )
         }}
-        onPointerLeave={(event) => {
-          onPointerLeave?.(event)
-          setHovered(false)
-        }}
-        {...props}
-        style={{ width: track, height }}
-      >
-        <SwitchPrimitive.Thumb
-          data-slot="switch-thumb"
-          render={(thumbProps) => {
-            /* motion.span and React disagree on the drag/animation handler types that
-             Base UI forwards, and none of them are used here. */
-            const {
-              style: baseStyle,
-              onDrag: _onDrag,
-              onDragStart: _onDragStart,
-              onDragEnd: _onDragEnd,
-              onAnimationStart: _onAnimationStart,
-              onAnimationEnd: _onAnimationEnd,
-              onAnimationIteration: _onAnimationIteration,
-              ...rest
-            } = thumbProps as React.HTMLAttributes<HTMLSpanElement>
-            return (
-              <m.span
-                {...rest}
-                className="pointer-events-none absolute top-0 left-0 block rounded-full bg-white"
-                initial={false}
-                style={{ ...baseStyle, x }}
-                animate={{ y: thumbY, width: thumbWidth, height: thumbHeight }}
-                transition={hasMounted.current ? transition : { duration: 0 }}
-              />
-            )
-          }}
-        />
-      </SwitchPrimitive.Root>
-    </LazyMotion>
+      />
+    </SwitchPrimitive.Root>
   )
 }
 

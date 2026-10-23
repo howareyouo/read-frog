@@ -431,7 +431,7 @@ async function translateTranslationOnlyRun(
     const innerTextContent = transNodes.map((node) => extractTextContent(node, config)).join("")
     if (!innerTextContent.trim() || isNumericContent(innerTextContent)) return
 
-    // Check the plain text, not the HTML string sent to the provider — franc
+    // Check the plain text, not the HTML string sent to the provider — CLD
     // on markup is noise. Runs before the wrapper is inserted into the DOM.
     if (await isParagraphFilteredOut(innerTextContent, config)) return
 

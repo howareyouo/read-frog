@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { Activity, useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import { toastManager } from "@/components/ui/base-ui/toast"
 import { useGoogleDriveAuth } from "@/hooks/use-google-drive-auth"

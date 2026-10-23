@@ -1,10 +1,9 @@
 /// <reference types="@modyfi/vite-plugin-yaml/modules" />
-import type { Resource } from "i18next"
 import en from "@/locales/en.yml"
 import zhCN from "@/locales/zh-CN.yml"
 
 /**
- * The interface languages the runtime i18next engine can switch between.
+ * The interface languages the runtime i18n engine can switch between.
  *
  * MUST stay in sync with the `uiLanguage` enum in `@/types/config/config` and the
  * files under `src/locales/`. `@wxt-dev/i18n/module` still reads those same files to
@@ -21,12 +20,12 @@ export type SupportedUiLocale = (typeof SUPPORTED_UI_LOCALES)[number]
 
 export const DEFAULT_UI_LOCALE: SupportedUiLocale = "en"
 
-interface LocaleTree {
+export interface LocaleTree {
   [key: string]: string | LocaleTree
 }
 
 /**
- * Convert WXT-style positional substitutions to i18next interpolation, applied to
+ * Convert WXT-style positional substitutions to indexed interpolation, applied to
  * every string leaf at build time:
  *   - `$$`      → literal `$`   (WXT escape; none currently in the YAML, handled anyway)
  *   - `$1`..`$9`→ `{{0}}`..`{{8}}` (0-indexed to match the facade's array mapping)
@@ -49,15 +48,14 @@ function convertTree(node: LocaleTree): LocaleTree {
   return out
 }
 
-const rawResources: Record<SupportedUiLocale, LocaleTree> = {
+const rawDictionaries: Record<SupportedUiLocale, LocaleTree> = {
   en,
   "zh-CN": zhCN,
 }
 
 /**
- * i18next resource bundle: `{ [locale]: { translation: <nested string tree> } }`.
- * Single default namespace ("translation"); keys are traversed with keySeparator ".".
+ * Nested string trees per locale, keyed with "." separators (e.g. `menu.openTitle`).
  */
-export const resources: Resource = Object.fromEntries(
-  Object.entries(rawResources).map(([lng, tree]) => [lng, { translation: convertTree(tree) }]),
-)
+export const dictionaries: Record<SupportedUiLocale, LocaleTree> = Object.fromEntries(
+  Object.entries(rawDictionaries).map(([lng, tree]) => [lng, convertTree(tree)]),
+) as Record<SupportedUiLocale, LocaleTree>

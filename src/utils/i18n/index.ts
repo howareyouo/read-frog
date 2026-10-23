@@ -1,24 +1,26 @@
-import i18next, { changeLanguage, init, t as translate } from "i18next"
 import type { GeneratedI18nStructure } from "#i18n"
 import type { UiLanguage } from "@/types/config/config"
 import { resolveUiLocale } from "./locale-map"
-import { DEFAULT_UI_LOCALE, resources } from "./resources"
+import type { LocaleTree, SupportedUiLocale } from "./resources"
+import { DEFAULT_UI_LOCALE, dictionaries } from "./resources"
 
 /**
  * Runtime-switchable i18n facade.
  *
  * Replaces `@wxt-dev/i18n`'s `browser.i18n.getMessage` resolution (hard-locked to the
- * browser UI language) with a single i18next instance whose language is driven by the
+ * browser UI language) with a nested-dictionary lookup whose language is driven by the
  * `uiLanguage` config field. Preserves the exact `i18n.t('key')` / `i18n.t('key', subs)`
  * call signature so ~800 existing call sites only change their import path.
  *
- *   config.uiLanguage ──resolveUiLocale──▶ i18next.language
- *        │ 'auto' → browser locale                     ▲
- *        │ explicit → passthrough                      │
- *        └───────── initI18n() / setUiLanguage() ──────┘
+ *   config.uiLanguage ──resolveUiLocale──▶ activeLocale
+ *        │ 'auto' → browser locale              ▲
+ *        │ explicit → passthrough               │
+ *        └────── initI18n() / setUiLanguage() ──┘
  *
- * Resources for all 9 locales are bundled, so `init`/`changeLanguage` complete
- * synchronously — the React `<LocaleBoundary>` relies on this to switch without a flash.
+ * The dictionaries for both locales are bundled and switching is a plain assignment,
+ * so it is synchronous — the React `<LocaleBoundary>` relies on this to switch without
+ * a flash. Keys missing in every locale resolve to "" so guards like
+ * `i18n.t(key) || fallback` keep working.
  */
 
 type Substitution = string | number
@@ -36,8 +38,8 @@ export type I18nKey = keyof GeneratedI18nStructure
  * prompt-template keys (the repo's only `namedSubstitutions` keys) because its parser
  * matches the inner `{token}` of a literal `{{token}}`, but those tokens are NOT i18n
  * substitutions: they must survive verbatim to be filled later at prompt-execution time
- * (see `replaceSelectionToolbarCustomActionPromptTokens`). i18next leaves them intact via
- * `skipOnVariables`, so those keys correctly take no args here.
+ * (see `replaceSelectionToolbarCustomActionPromptTokens`). Named `{{token}}` placeholders
+ * are left intact below, so those keys correctly take no args here.
  */
 type FacadeT = <K extends I18nKey>(
   key: K,
@@ -46,60 +48,63 @@ type FacadeT = <K extends I18nKey>(
     : [substitutions: SubstitutionTuple<GeneratedI18nStructure[K]["substitutions"]>]
 ) => string
 
-let initialized = false
+let activeLocale: SupportedUiLocale = DEFAULT_UI_LOCALE
 
-const I18NEXT_OPTIONS = {
-  resources,
-  fallbackLng: DEFAULT_UI_LOCALE,
-  supportedLngs: false as const, // we always pass a resolved, supported locale
-  keySeparator: ".",
-  nsSeparator: false as const,
-  // Preserve the pre-migration `browser.i18n.getMessage` behaviour of returning "" for
-  // a key missing in *all* locales, so guards like `i18n.t(key) || fallback` keep working.
-  parseMissingKeyHandler: () => "",
-  interpolation: {
-    escapeValue: false,
-    // Leave `{{token}}` untouched when no matching value is passed. This keeps literal
-    // prompt-template tokens (`{{selection}}` etc.) intact so `i18n.t(key)` with no args
-    // returns them verbatim for later filling. (Default true in i18next 26; pinned here.)
-    skipOnVariables: true,
-  },
-  initImmediate: false as const,
-} as const
+/** The locale `t()` currently resolves keys against. */
+export function getActiveLocale(): SupportedUiLocale {
+  return activeLocale
+}
+
+function lookup(tree: LocaleTree, key: string): string | undefined {
+  let node: string | LocaleTree | undefined = tree
+  for (const part of key.split(".")) {
+    if (typeof node !== "object" || node === null) {
+      return undefined
+    }
+    node = node[part]
+  }
+  return typeof node === "string" ? node : undefined
+}
 
 /**
- * Initialize the i18next singleton for the current JS context. Call once per entrypoint
- * (background, popup, options, each content script) after config is loaded, before render.
- * Idempotent — a second call just switches the language if it differs.
+ * Positional substitutions (`$1..$9`, converted to `{{0}}..{{8}}` at resource-load time)
+ * arrive as an array and fill the matching indexed placeholders. Unmatched numeric
+ * placeholders and named tokens (`{{selection}}` etc.) stay verbatim. No key uses
+ * plurals, so no other arg shapes exist.
+ */
+function interpolate(template: string, substitutions?: Substitution[]): string {
+  if (!substitutions || substitutions.length === 0) {
+    return template
+  }
+
+  return template.replace(/\{\{(\d+)\}\}/g, (match, index: string) => {
+    const value = substitutions[Number(index)]
+    return value === undefined ? match : String(value)
+  })
+}
+
+function rawT(key: string, substitutions?: Substitution[]): string {
+  const template =
+    lookup(dictionaries[activeLocale], key) ?? lookup(dictionaries[DEFAULT_UI_LOCALE], key)
+  if (template === undefined) {
+    return ""
+  }
+
+  return interpolate(template, substitutions)
+}
+
+/**
+ * Set the active locale for the current JS context. Call once per entrypoint
+ * (background, popup, options, each content script) after config is loaded, before
+ * render. Idempotent — a second call just switches the language.
  */
 export async function initI18n(uiLanguage: UiLanguage = "auto"): Promise<void> {
-  const lng = resolveUiLocale(uiLanguage)
-  if (initialized) {
-    if (i18next.language !== lng) {
-      await changeLanguage(lng)
-    }
-    return
-  }
-  initialized = true
-  await init({ ...I18NEXT_OPTIONS, lng })
+  activeLocale = resolveUiLocale(uiLanguage)
 }
 
-/** Switch the active UI language (synchronous with bundled resources). */
+/** Switch the active UI language (synchronous — both dictionaries are bundled). */
 export async function setUiLanguage(uiLanguage: UiLanguage): Promise<void> {
-  await changeLanguage(resolveUiLocale(uiLanguage))
-}
-
-/**
- * Delegate for every `i18n.t(...)` call. Positional substitutions (`$1..$9`, converted to
- * `{{0}}..{{8}}` at resource-load time) arrive as an array and map to i18next's
- * interpolation object. No key uses plurals or named substitutions, so no other arg
- * shapes exist.
- */
-function rawT(key: string, substitutions?: Substitution[]): string {
-  const options = substitutions
-    ? Object.fromEntries(substitutions.map((value, index) => [String(index), value]))
-    : undefined
-  return translate(key, options)
+  activeLocale = resolveUiLocale(uiLanguage)
 }
 
 export const i18n: { t: FacadeT } = { t: rawT }

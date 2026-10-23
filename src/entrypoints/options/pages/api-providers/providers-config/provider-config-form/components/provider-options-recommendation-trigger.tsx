@@ -1,7 +1,7 @@
-import { Icon } from "@iconify/react"
 import type { JSONValue } from "ai"
 import { dequal } from "dequal"
 import { useContext, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import {
   Popover,

@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import { useMutation } from "@tanstack/react-query"
 import { useMemo } from "react"
+import { Icon } from "@/components/icons/icon"
 import LoadingDots from "@/components/loading-dots"
 import { Button } from "@/components/ui/base-ui/button"
 import type { LLMProviderConfig } from "@/types/config/provider"

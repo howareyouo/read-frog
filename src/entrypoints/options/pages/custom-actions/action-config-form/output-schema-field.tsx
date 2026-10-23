@@ -1,10 +1,10 @@
-import { Icon } from "@iconify/react"
 import { useForm } from "@tanstack/react-form"
 import { useContext, useEffect, useState } from "react"
 import { fieldContext as FieldContext } from "@/components/form/form-context"
 import { InputFieldAutoSave as InputField } from "@/components/form/input-field-auto-save"
 import { QuickInsertableTextareaFieldAutoSave as QuickInsertableTextareaField } from "@/components/form/quick-insertable-textarea-field-auto-save"
 import { SelectFieldAutoSave as SelectField } from "@/components/form/select-field-auto-save"
+import { Icon } from "@/components/icons/icon"
 import { SortableList } from "@/components/sortable-list"
 import {
   AlertDialog,

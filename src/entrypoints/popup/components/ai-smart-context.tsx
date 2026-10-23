@@ -1,9 +1,9 @@
-import { deepmerge } from "deepmerge-ts"
 import { useAtom } from "jotai"
 import { HelpTooltip } from "@/components/help-tooltip"
 import { Switch } from "@/components/ui/base-ui/switch"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { i18n } from "@/utils/i18n"
+import { deepmerge } from "@/utils/merge"
 
 export function AISmartContext() {
   const [translateConfig, setTranslateConfig] = useAtom(configFieldsAtomMap.pageTranslation)

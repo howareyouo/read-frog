@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import type { ReactNode } from "react"
 import { useContext, useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import {
   Collapsible,
   CollapsibleContent,

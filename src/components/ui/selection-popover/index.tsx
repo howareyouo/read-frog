@@ -5,7 +5,6 @@ import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 import { IconGripHorizontal, IconPin, IconPinnedFilled, IconX } from "@tabler/icons-react"
 import * as React from "react"
-import { Rnd } from "react-rnd"
 import { Button } from "@/components/ui/base-ui/button"
 import {
   SELECTION_CONTENT_OVERLAY_LAYERS,
@@ -18,7 +17,6 @@ import {
   SELECTION_POPOVER_DRAG_HANDLE_CLASS,
   SELECTION_POPOVER_NO_DRAG_SELECTOR,
   SELECTION_POPOVER_RESIZE_HANDLE_STYLES,
-  SELECTION_POPOVER_RESIZE_HANDLES,
   useSelectionPopoverLayout,
 } from "./use-selection-popover-layout"
 
@@ -314,6 +312,34 @@ function SelectionPopoverTrigger({
   })
 }
 
+const RESIZE_DIRECTIONS = [
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "topRight",
+  "bottomRight",
+  "bottomLeft",
+  "topLeft",
+] as const
+
+type SelectionPopoverResizeDirection = (typeof RESIZE_DIRECTIONS)[number]
+
+const SELECTION_POPOVER_RESIZE_CURSORS: Record<SelectionPopoverResizeDirection, string> = {
+  top: "ns-resize",
+  right: "ew-resize",
+  bottom: "ns-resize",
+  left: "ew-resize",
+  topRight: "nesw-resize",
+  bottomLeft: "nesw-resize",
+  topLeft: "nwse-resize",
+  bottomRight: "nwse-resize",
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
 type SelectionPopoverShellProps = Omit<
   React.ComponentProps<"div">,
   "onDrag" | "onDragStart" | "ref"
@@ -334,54 +360,156 @@ function SelectionPopoverShell({
   isDragging: _isDragging,
   minHeight,
   minWidth,
-  onMouseDown,
-  onMouseUp,
   position,
-  rndRef,
+  elementRef,
   ref: forwardedRef,
   style,
   ...props
 }: SelectionPopoverShellProps) {
-  const assignRndRef = React.useCallback(
-    (instance: Rnd | null) => {
-      rndRef.current = instance
-      const element = instance?.getSelfElement() as HTMLDivElement | null
+  const sizeRef = React.useRef<{ width: number | null; height: number | null }>({
+    width: defaultLayout.width,
+    height: null,
+  })
+
+  const assignElementRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      elementRef.current = node
 
       if (typeof forwardedRef === "function") {
-        forwardedRef(element)
+        forwardedRef(node)
         return
       }
 
       if (forwardedRef) {
-        forwardedRef.current = element
+        forwardedRef.current = node
       }
     },
-    [forwardedRef, rndRef],
+    [forwardedRef, elementRef],
+  )
+
+  const handleDragPointerDown = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return
+      }
+
+      const target = event.target as HTMLElement | null
+      if (!target?.closest(`.${SELECTION_POPOVER_DRAG_HANDLE_CLASS}`)) {
+        return
+      }
+
+      if (target.closest(SELECTION_POPOVER_NO_DRAG_SELECTOR)) {
+        return
+      }
+
+      const element = event.currentTarget
+      const rect = element.getBoundingClientRect()
+      const pointerStartX = event.clientX
+      const pointerStartY = event.clientY
+      let nextX = rect.left
+      let nextY = rect.top
+
+      handleDragStart()
+      element.setPointerCapture(event.pointerId)
+
+      const onPointerMove = (moveEvent: PointerEvent) => {
+        nextX = rect.left + (moveEvent.clientX - pointerStartX)
+        nextY = rect.top + (moveEvent.clientY - pointerStartY)
+        handleDrag({ x: nextX, y: nextY })
+      }
+
+      const onPointerEnd = (endEvent: PointerEvent) => {
+        element.removeEventListener("pointermove", onPointerMove)
+        element.removeEventListener("pointerup", onPointerEnd)
+        element.removeEventListener("pointercancel", onPointerEnd)
+        if (element.hasPointerCapture(endEvent.pointerId)) {
+          element.releasePointerCapture(endEvent.pointerId)
+        }
+        handleDragStop({ x: nextX, y: nextY })
+      }
+
+      element.addEventListener("pointermove", onPointerMove)
+      element.addEventListener("pointerup", onPointerEnd)
+      element.addEventListener("pointercancel", onPointerEnd)
+    },
+    [handleDrag, handleDragStart, handleDragStop],
+  )
+
+  const handleResizePointerDown = React.useCallback(
+    (direction: SelectionPopoverResizeDirection, event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return
+      }
+
+      const element = event.currentTarget.parentElement
+      if (!element) {
+        return
+      }
+
+      const rect = element.getBoundingClientRect()
+      const startLeft = rect.left
+      const startTop = rect.top
+      const startRight = rect.right
+      const startBottom = rect.bottom
+      const maxWidth = window.innerWidth
+      const maxHeight = window.innerHeight
+      let nextX = startLeft
+      let nextY = startTop
+
+      element.setPointerCapture(event.pointerId)
+
+      const onPointerMove = (moveEvent: PointerEvent) => {
+        let left = startLeft
+        let top = startTop
+        let right = startRight
+        let bottom = startBottom
+
+        if (direction === "right" || direction.endsWith("Right")) {
+          right = clamp(moveEvent.clientX, startLeft + minWidth, maxWidth)
+        }
+        if (direction === "bottom" || direction.startsWith("bottom")) {
+          bottom = clamp(moveEvent.clientY, startTop + minHeight, maxHeight)
+        }
+        if (direction === "left" || direction.endsWith("Left")) {
+          left = clamp(moveEvent.clientX, 0, startRight - minWidth)
+        }
+        if (direction === "top" || direction.startsWith("top")) {
+          top = clamp(moveEvent.clientY, 0, startBottom - minHeight)
+        }
+
+        const width = right - left
+        const height = bottom - top
+        nextX = left
+        nextY = top
+        sizeRef.current = { width, height }
+        element.style.width = `${width}px`
+        element.style.height = `${height}px`
+        element.style.transform = `translate(${left}px, ${top}px)`
+      }
+
+      const onPointerEnd = (endEvent: PointerEvent) => {
+        element.removeEventListener("pointermove", onPointerMove)
+        element.removeEventListener("pointerup", onPointerEnd)
+        element.removeEventListener("pointercancel", onPointerEnd)
+        if (element.hasPointerCapture(endEvent.pointerId)) {
+          element.releasePointerCapture(endEvent.pointerId)
+        }
+        handleResizeStop(element, { x: nextX, y: nextY })
+      }
+
+      element.addEventListener("pointermove", onPointerMove)
+      element.addEventListener("pointerup", onPointerEnd)
+      element.addEventListener("pointercancel", onPointerEnd)
+    },
+    [handleResizeStop, minHeight, minWidth],
   )
 
   return (
-    <Rnd
-      ref={assignRndRef}
-      bounds="window"
-      default={defaultLayout}
-      position={position}
-      minWidth={minWidth}
-      minHeight={minHeight}
-      maxWidth="100vw"
-      maxHeight="100vh"
-      dragHandleClassName={SELECTION_POPOVER_DRAG_HANDLE_CLASS}
-      cancel={SELECTION_POPOVER_NO_DRAG_SELECTOR}
-      enableResizing={SELECTION_POPOVER_RESIZE_HANDLES}
-      resizeHandleStyles={SELECTION_POPOVER_RESIZE_HANDLE_STYLES}
-      onMouseDown={
-        onMouseDown
-          ? (e) => onMouseDown(e as unknown as React.MouseEvent<HTMLDivElement>)
-          : undefined
-      }
-      onMouseUp={
-        onMouseUp ? (e) => onMouseUp(e as unknown as React.MouseEvent<HTMLDivElement>) : undefined
-      }
+    <div
+      ref={assignElementRef}
       {...props}
+      onPointerDown={handleDragPointerDown}
+      onWheel={handleWheel}
       className={cn(
         `pointer-events-auto flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-floating ${NOTRANSLATE_CLASS}`,
         className,
@@ -389,27 +517,35 @@ function SelectionPopoverShell({
       {...{ [SELECTION_CONTENT_OVERLAY_ROOT_ATTRIBUTE]: "" }}
       style={{
         display: "flex",
+        position: "absolute",
+        top: 0,
+        left: 0,
+        minWidth,
+        minHeight,
+        width: sizeRef.current.width ?? undefined,
+        height: sizeRef.current.height ?? undefined,
         ...style,
         opacity: "var(--rf-selection-opacity, 1)",
         maxWidth: "100vw",
         maxHeight: "100vh",
+        transform: `translate(${position.x}px, ${position.y}px)`,
       }}
-      onDragStart={() => {
-        handleDragStart()
-      }}
-      onDrag={(_, data) => {
-        handleDrag({ x: data.x, y: data.y })
-      }}
-      onDragStop={(_, data) => {
-        handleDragStop({ x: data.x, y: data.y })
-      }}
-      onResizeStop={(_, __, elementRef, ___, resizedPosition) => {
-        handleResizeStop(elementRef, { x: resizedPosition.x, y: resizedPosition.y })
-      }}
-      onWheel={handleWheel}
     >
       {children}
-    </Rnd>
+      {RESIZE_DIRECTIONS.map((direction) => (
+        <div
+          key={direction}
+          onPointerDown={(event) => handleResizePointerDown(direction, event)}
+          style={{
+            position: "absolute",
+            zIndex: 100,
+            touchAction: "none",
+            cursor: SELECTION_POPOVER_RESIZE_CURSORS[direction],
+            ...SELECTION_POPOVER_RESIZE_HANDLE_STYLES[direction],
+          }}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -432,7 +568,7 @@ function SelectionPopoverContent({
   const [bodyElement, setBodyElement] = React.useState<HTMLDivElement | null>(null)
 
   const {
-    rndRef,
+    elementRef,
     isDragging,
     position,
     defaultLayout,
@@ -504,7 +640,7 @@ function SelectionPopoverContent({
         finalFocus={resolvedFinalFocus}
       >
         <SelectionPopoverShell
-          rndRef={rndRef}
+          elementRef={elementRef}
           isDragging={isDragging}
           position={position}
           defaultLayout={defaultLayout}

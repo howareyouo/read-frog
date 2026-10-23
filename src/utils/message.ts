@@ -35,6 +35,9 @@ interface ProtocolMap {
   detectedPageLanguageChanged: (data: { detectedCode: LangCodeISO6393 }) => void
   // ask host to start page translation
   askManagerToTogglePageTranslation: (data: { enabled: boolean }) => void
+  // language detection (Chrome CLD runs in the background; content scripts
+  // stay franc-free)
+  detectLanguage: (data: { text: string }) => Promise<LangCodeISO6393 | "und">
   openSelectionTranslationFromContextMenu: (data: { selectionText: string }) => void
   openSelectionCustomActionFromContextMenu: (data: {
     actionId: string

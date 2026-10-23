@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import { useAtom, useAtomValue } from "jotai"
 import { Activity } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Switch } from "@/components/ui/base-ui/switch"
 import type { InputTranslationLang } from "@/types/config/config"
 import { configFieldsAtomMap } from "@/utils/atoms/config"

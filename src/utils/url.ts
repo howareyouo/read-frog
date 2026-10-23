@@ -1,5 +1,3 @@
-import { z } from "zod"
-
 export function getPageTranslationOriginScope(url: string): string | null {
   try {
     const urlObj = new URL(url)
@@ -20,7 +18,9 @@ export function areSamePageTranslationOrigin(from: string, to: string): boolean 
 }
 
 export function matchDomainPattern(url: string, pattern: string): boolean {
-  if (!z.url().safeParse(url).success) {
+  try {
+    new URL(url)
+  } catch {
     return false
   }
 

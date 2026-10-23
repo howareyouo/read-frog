@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import { useSelector } from "@tanstack/react-store"
 import { useContext, useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import { Field, FieldTitle } from "@/components/ui/base-ui/field"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/base-ui/input-group"

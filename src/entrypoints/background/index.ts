@@ -23,6 +23,7 @@ import {
 } from "./db-cleanup"
 import { setUpDirectTranslate } from "./direct-translate"
 import { setupIframeInjection } from "./iframe-injection"
+import { setUpLanguageDetectionMessageHandlers } from "./language-detection"
 import { setupLLMGenerateTextMessageHandlers } from "./llm-generate-text"
 import { initMockData } from "./mock-data"
 import { proxyFetch } from "./proxy-fetch"
@@ -90,6 +91,7 @@ export default defineBackground({
     })
 
     translationMessage()
+    setUpLanguageDetectionMessageHandlers()
     registerActionIconListeners()
 
     // Register context menu listeners synchronously
@@ -135,7 +137,7 @@ export default defineBackground({
 
     // Keep background-resolved strings in the selected language when it changes.
     // The context menu re-creates itself via its own config watcher
-    // (registerContextMenuListeners), so here we only drive the i18next singleton.
+    // (registerContextMenuListeners), so here we only drive the i18n singleton.
     storageAdapter.watch<Config>(CONFIG_STORAGE_KEY, (newConfig) => {
       void (async () => {
         await backgroundReady

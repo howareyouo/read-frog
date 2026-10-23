@@ -1,4 +1,3 @@
-import { deepmerge } from "deepmerge-ts"
 import { useAtom } from "jotai"
 import {
   Select,
@@ -11,6 +10,7 @@ import {
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { HOTKEY_ICONS, HOTKEYS } from "@/utils/constants/hotkeys"
 import { i18n } from "@/utils/i18n"
+import { deepmerge } from "@/utils/merge"
 import { ConfigItem } from "../../components/config-item"
 import { SELECT_CONTENT_PROPS } from "../../components/select-content-props"
 

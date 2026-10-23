@@ -1,5 +1,5 @@
-import { Icon } from "@iconify/react"
 import { useAtom, useAtomValue } from "jotai"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/base-ui/kbd"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/base-ui/tooltip"

@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import type { ReactNode } from "react"
 import { Link } from "react-router"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import { useDrillInBack } from "../navigation/drill-in"
 import { ConfigSection } from "./config-section"

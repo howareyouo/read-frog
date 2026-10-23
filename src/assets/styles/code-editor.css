@@ -1,0 +1,78 @@
+/* Prism token colors for the lightweight code editors (GitHub light/dark palettes). */
+.code-editor-highlight textarea:focus {
+  outline: none;
+}
+
+.code-editor-highlight textarea::placeholder {
+  color: var(--rf-muted-foreground);
+}
+
+.code-editor-highlight .token.comment,
+.code-editor-highlight .token.prolog,
+.code-editor-highlight .token.doctype,
+.code-editor-highlight .token.cdata {
+  color: #6e7781;
+}
+.code-editor-highlight .token.punctuation {
+  color: #24292f;
+}
+.code-editor-highlight .token.property,
+.code-editor-highlight .token.number,
+.code-editor-highlight .token.boolean {
+  color: #0550ae;
+}
+.code-editor-highlight .token.string,
+.code-editor-highlight .token.char,
+.code-editor-highlight .token.attr-value {
+  color: #0a3069;
+}
+.code-editor-highlight .token.keyword,
+.code-editor-highlight .token.atrule {
+  color: #cf222e;
+}
+.code-editor-highlight .token.operator {
+  color: #0550ae;
+}
+.code-editor-highlight .token.selector,
+.code-editor-highlight .token.tag {
+  color: #116329;
+}
+.code-editor-highlight .token.function,
+.code-editor-highlight .token.url {
+  color: #8250df;
+}
+
+.dark .code-editor-highlight .token.comment,
+.dark .code-editor-highlight .token.prolog,
+.dark .code-editor-highlight .token.doctype,
+.dark .code-editor-highlight .token.cdata {
+  color: #8b949e;
+}
+.dark .code-editor-highlight .token.punctuation {
+  color: #e6edf3;
+}
+.dark .code-editor-highlight .token.property,
+.dark .code-editor-highlight .token.number,
+.dark .code-editor-highlight .token.boolean {
+  color: #79c0ff;
+}
+.dark .code-editor-highlight .token.string,
+.dark .code-editor-highlight .token.char,
+.dark .code-editor-highlight .token.attr-value {
+  color: #a5d6ff;
+}
+.dark .code-editor-highlight .token.keyword,
+.dark .code-editor-highlight .token.atrule {
+  color: #ff7b72;
+}
+.dark .code-editor-highlight .token.operator {
+  color: #ff7b72;
+}
+.dark .code-editor-highlight .token.selector,
+.dark .code-editor-highlight .token.tag {
+  color: #7ee787;
+}
+.dark .code-editor-highlight .token.function,
+.dark .code-editor-highlight .token.url {
+  color: #d2a8ff;
+}

@@ -1,6 +1,6 @@
-import { deepmerge } from "deepmerge-ts"
 import { requestQueueConfigSchema } from "@/types/config/translate"
 import { getRandomUUID } from "@/utils/crypto-polyfill"
+import { deepmerge } from "@/utils/merge"
 import { TranslationCancelledError } from "./cancellation"
 import { BinaryHeapPQ } from "./priority-queue"
 import type { RequestRetryPolicy } from "./retry-policy"

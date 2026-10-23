@@ -1,7 +1,7 @@
-import { Icon } from "@iconify/react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useContext, useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router"
+import { Icon } from "@/components/icons/icon"
 import { SortableList } from "@/components/sortable-list"
 import { Button } from "@/components/ui/base-ui/button"
 import { Dialog, DialogTrigger } from "@/components/ui/base-ui/dialog"

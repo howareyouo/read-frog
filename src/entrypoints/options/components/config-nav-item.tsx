@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import type { ReactNode } from "react"
 import { Link } from "react-router"
+import { Icon } from "@/components/icons/icon"
 import { cn } from "@/utils/styles/utils"
 import { DRILL_IN_LOCATION_STATE } from "../navigation/drill-in"
 import { ConfigItem } from "./config-item"

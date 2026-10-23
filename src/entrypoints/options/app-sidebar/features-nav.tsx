@@ -1,5 +1,5 @@
-import { Icon } from "@iconify/react"
 import { Link, useLocation } from "react-router"
+import { Icon } from "@/components/icons/icon"
 import {
   SidebarGroup,
   SidebarGroupContent,

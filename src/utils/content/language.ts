@@ -1,6 +1,5 @@
 import type { LangCodeISO6393 } from "@read-frog/definitions"
 import { langCodeISO6393Schema } from "@read-frog/definitions"
-import { franc } from "franc-min"
 import { toastManager } from "@/components/ui/base-ui/toast"
 import { getLocalConfig } from "@/utils/config/storage"
 import { i18n } from "@/utils/i18n"
@@ -19,7 +18,7 @@ const DEFAULT_MIN_LENGTH = 10
 const DEFAULT_MAX_LENGTH_FOR_LLM = 500
 const LLM_DETECTION_FALLBACK_TOAST_ID = "llm-detection-fallback"
 
-export type DetectionSource = "llm" | "franc" | "fallback"
+export type DetectionSource = "llm" | "cld" | "fallback"
 
 export interface DetectLanguageOptions {
   /** Minimum text length to attempt detection (default: 10) */
@@ -38,7 +37,7 @@ export interface DetectLanguageResult {
 }
 
 /**
- * Detect language of text using franc, with optional LLM enhancement.
+ * Detect language of text with the built-in CLD detector, with optional LLM enhancement.
  * Returns both the detected code and the detection source.
  * @param text - Text to detect language for
  * @param options - Detection options
@@ -65,7 +64,7 @@ export async function detectLanguageWithSource(
         return { code: llmResult, source: "llm" }
       }
     } catch (error) {
-      logger.warn("LLM detection failed, falling back to franc:", error)
+      logger.warn("LLM detection failed, falling back to CLD:", error)
       toastManager.add({
         type: "warning",
         title: i18n.t("languageDetection.llmFailed"),
@@ -74,22 +73,22 @@ export async function detectLanguageWithSource(
     }
   }
 
-  // Fallback to franc
-  const francResult = franc(trimmedText)
-  if (francResult === "und") {
+  // Fallback to Chrome's built-in CLD detector (runs in the background).
+  const detectedCode = await sendMessage("detectLanguage", { text: trimmedText })
+  if (detectedCode === "und") {
     return { code: "und", source: "fallback" }
   }
 
-  const parsedFrancResult = langCodeISO6393Schema.safeParse(francResult)
-  if (!parsedFrancResult.success) {
+  const parsedResult = langCodeISO6393Schema.safeParse(detectedCode)
+  if (!parsedResult.success) {
     return { code: "und", source: "fallback" }
   }
 
-  return { code: parsedFrancResult.data, source: "franc" }
+  return { code: parsedResult.data, source: "cld" }
 }
 
 /**
- * Detect language of text using franc, with optional LLM enhancement.
+ * Detect language of text with the built-in CLD detector, with optional LLM enhancement.
  * @param text - Text to detect language for
  * @param options - Detection options
  * @returns Detected language code or null if detection failed

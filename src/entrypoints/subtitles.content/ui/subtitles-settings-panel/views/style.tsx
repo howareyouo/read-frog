@@ -1,5 +1,4 @@
 import { IconLanguage, IconRefresh, IconSettings, IconSubtitles } from "@tabler/icons-react"
-import { deepmerge } from "deepmerge-ts"
 import { useAtom } from "jotai"
 import type { ReactNode } from "react"
 import { Activity, useContext } from "react"
@@ -41,6 +40,7 @@ import {
   SUBTITLE_FONT_FAMILY_OPTIONS,
 } from "@/utils/constants/subtitles"
 import { i18n } from "@/utils/i18n"
+import { deepmerge } from "@/utils/merge"
 import { ShadowWrapperContext } from "@/utils/react-shadow-host/create-shadow-host"
 import { subtitlesStore } from "../../../atoms"
 

@@ -6,9 +6,9 @@
  * editor: 500ms debounced validation, Save/Saved label, status line).
  */
 
-import { Icon } from "@iconify/react"
 import { useAtom } from "jotai"
 import { useContext, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/base-ui/alert"
 import { Button } from "@/components/ui/base-ui/button"
 import { JSONCodeEditor } from "@/components/ui/json-code-editor"

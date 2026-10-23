@@ -1,8 +1,8 @@
 import { Combobox as ComboboxPrimitive } from "@base-ui/react"
-import { Icon } from "@iconify/react"
 import type { LangCodeISO6393 } from "@read-frog/definitions"
 import { langCodeISO6393Schema } from "@read-frog/definitions"
 import { useContext, useMemo } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Button } from "@/components/ui/base-ui/button"
 import {
   Combobox,

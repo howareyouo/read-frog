@@ -1,7 +1,7 @@
-import { Icon } from "@iconify/react"
 import { useMutation } from "@tanstack/react-query"
 import { useAtomValue, useSetAtom } from "jotai"
 import { useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import {
   AlertDialog,
   AlertDialogAction,

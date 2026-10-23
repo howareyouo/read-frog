@@ -1,13 +1,10 @@
 /**
- * CSS Linter for CodeMirror
+ * CSS Linter
  *
- * Provides real-time CSS syntax validation in the editor.
- * Can also be used standalone for validation outside the editor.
+ * Provides CSS syntax validation.
+ * Can be used standalone for validation outside the editor.
  */
 
-import type { Diagnostic } from "@codemirror/lint"
-import { linter } from "@codemirror/lint"
-import type { EditorView } from "@codemirror/view"
 import * as csstree from "css-tree"
 
 export interface CSSLintError {
@@ -68,33 +65,4 @@ export function lintCSS(css: string): CSSLintResult {
     valid: errors.length === 0,
     errors,
   }
-}
-
-/**
- * CodeMirror linter extension
- * Shows syntax errors with red squiggly lines in the editor
- */
-export function cssLinter() {
-  return linter((view: EditorView) => {
-    const diagnostics: Diagnostic[] = []
-    const css = view.state.doc.toString()
-
-    const result = lintCSS(css)
-
-    for (const error of result.errors) {
-      // Convert line/column to document position
-      const line = view.state.doc.line(error.line)
-      const from = line.from + error.column - 1
-      const to = Math.min(from + 10, line.to) // Highlight ~10 chars or until end of line
-
-      diagnostics.push({
-        from,
-        to,
-        severity: error.severity,
-        message: error.message,
-      })
-    }
-
-    return diagnostics
-  })
 }

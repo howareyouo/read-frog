@@ -1,5 +1,5 @@
-import { Icon } from "@iconify/react"
 import type { VariantProps } from "class-variance-authority"
+import { Icon } from "@/components/icons/icon"
 import type { buttonVariants } from "@/components/ui/base-ui/button"
 import { Button } from "@/components/ui/base-ui/button"
 import {

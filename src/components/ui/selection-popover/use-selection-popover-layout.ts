@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react"
 import { flushSync } from "react-dom"
-import type { Rnd } from "react-rnd"
 
 interface Position {
   x: number
@@ -26,7 +25,7 @@ interface UseSelectionPopoverLayoutOptions {
 }
 
 interface UseSelectionPopoverLayoutResult {
-  rndRef: React.RefObject<Rnd | null>
+  elementRef: React.RefObject<HTMLDivElement | null>
   isDragging: boolean
   position: Position
   defaultLayout: Position & { width: number; height: "auto" }
@@ -47,16 +46,6 @@ const BOTTOM_EDGE_TOLERANCE = 1
 export const SELECTION_POPOVER_DRAG_HANDLE_CLASS = "rf-selection-popover-drag-handle"
 export const SELECTION_POPOVER_NO_DRAG_SELECTOR =
   'button, input, textarea, select, option, a, [role="button"], [data-rf-no-drag="true"]'
-export const SELECTION_POPOVER_RESIZE_HANDLES = {
-  top: true,
-  right: true,
-  bottom: true,
-  left: true,
-  topRight: true,
-  bottomRight: true,
-  bottomLeft: true,
-  topLeft: true,
-} as const
 
 export const SELECTION_POPOVER_RESIZE_HANDLE_STYLES = {
   top: { top: -5, height: 10, left: 8, right: 8 },
@@ -182,8 +171,8 @@ function getViewportVerticalLayout(
   }
 }
 
-function getPopoverRect(rndRef: React.RefObject<Rnd | null>) {
-  const element = rndRef.current?.getSelfElement()
+function getPopoverRect(elementRef: React.RefObject<HTMLDivElement | null>) {
+  const element = elementRef.current
   if (!element) {
     return null
   }
@@ -198,7 +187,7 @@ export function useSelectionPopoverLayout({
   anchor,
   isVisible,
 }: UseSelectionPopoverLayoutOptions): UseSelectionPopoverLayoutResult {
-  const rndRef = useRef<Rnd | null>(null)
+  const elementRef = useRef<HTMLDivElement | null>(null)
   const resizeFrameRef = useRef<number | null>(null)
   const resizeObserverFrameRef = useRef<number | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
@@ -263,8 +252,18 @@ export function useSelectionPopoverLayout({
     [],
   )
 
+  const setElementSize = useCallback((width: number, height: number) => {
+    const element = elementRef.current
+    if (!element) {
+      return
+    }
+
+    element.style.width = `${width}px`
+    element.style.height = `${height}px`
+  }, [])
+
   const syncPreferredPositionFromElement = useCallback(() => {
-    const popoverRect = getPopoverRect(rndRef)
+    const popoverRect = getPopoverRect(elementRef)
     if (!popoverRect) {
       return
     }
@@ -274,7 +273,7 @@ export function useSelectionPopoverLayout({
   }, [])
 
   const clampCurrentPositionToViewport = useCallback(() => {
-    const popoverRect = getPopoverRect(rndRef)
+    const popoverRect = getPopoverRect(elementRef)
     if (!popoverRect) {
       return
     }
@@ -291,7 +290,7 @@ export function useSelectionPopoverLayout({
 
   const handleDrag = useCallback(
     (dragPosition: Position) => {
-      const popoverRect = getPopoverRect(rndRef)
+      const popoverRect = getPopoverRect(elementRef)
       if (!popoverRect) {
         return
       }
@@ -316,7 +315,7 @@ export function useSelectionPopoverLayout({
         return
       }
 
-      const popoverRect = getPopoverRect(rndRef)
+      const popoverRect = getPopoverRect(elementRef)
       if (!popoverRect) {
         return
       }
@@ -351,10 +350,7 @@ export function useSelectionPopoverLayout({
           nextVertical.size !== popoverRect.rect.height)
       ) {
         suppressResizeObserverRef.current = true
-        rndRef.current?.updateSize({
-          width: nextHorizontal.size,
-          height: nextVertical.size,
-        })
+        setElementSize(nextHorizontal.size, nextVertical.size)
         requestAnimationFrame(() => {
           suppressResizeObserverRef.current = false
         })
@@ -369,7 +365,7 @@ export function useSelectionPopoverLayout({
 
       updatePositionState(nextPosition, popoverRect.rect, options?.immediate)
     },
-    [updatePositionState],
+    [setElementSize, updatePositionState],
   )
 
   const scheduleViewportLayout = useCallback(() => {
@@ -394,7 +390,7 @@ export function useSelectionPopoverLayout({
       return
     }
 
-    const popoverRect = getPopoverRect(rndRef)
+    const popoverRect = getPopoverRect(elementRef)
     if (!popoverRect) {
       if (resizeObserverFrameRef.current !== null) {
         return
@@ -423,7 +419,7 @@ export function useSelectionPopoverLayout({
         }
 
         if (!preferredLayoutRef.current.manualSize) {
-          const currentPopoverRect = getPopoverRect(rndRef)
+          const currentPopoverRect = getPopoverRect(elementRef)
           if (
             currentPopoverRect?.rect.bottom &&
             currentPopoverRect.rect.bottom > window.innerHeight + BOTTOM_EDGE_TOLERANCE
@@ -453,7 +449,7 @@ export function useSelectionPopoverLayout({
       isDraggingRef.current = false
       setDragging(false)
 
-      const popoverRect = getPopoverRect(rndRef)
+      const popoverRect = getPopoverRect(elementRef)
       const nextPosition = getBoundedPosition(
         stoppedPosition.x,
         stoppedPosition.y,
@@ -493,10 +489,10 @@ export function useSelectionPopoverLayout({
       preferredLayoutRef.current.manualSize = manualSize
 
       setPosition(nextPosition)
-      rndRef.current?.updateSize(manualSize)
+      setElementSize(manualSize.width, manualSize.height)
       scheduleViewportLayout()
     },
-    [scheduleViewportLayout],
+    [scheduleViewportLayout, setElementSize],
   )
 
   const handleWheel = useCallback((event: React.WheelEvent<HTMLElement>) => {
@@ -554,7 +550,7 @@ export function useSelectionPopoverLayout({
   }, [cancelScheduledViewportLayout, disconnectResizeObserver])
 
   return {
-    rndRef,
+    elementRef,
     isDragging,
     position: position ?? getInitialPosition(anchor),
     defaultLayout: {

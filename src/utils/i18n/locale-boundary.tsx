@@ -1,8 +1,8 @@
-import i18next, { changeLanguage } from "i18next"
 import { useAtomValue } from "jotai"
 import type { ReactNode } from "react"
-import { Fragment, useContext } from "react"
+import { Fragment } from "react"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
+import { getActiveLocale, setUiLanguage } from "./index"
 import { resolveUiLocale } from "./locale-map"
 
 /**
@@ -12,19 +12,18 @@ import { resolveUiLocale } from "./locale-map"
  * of each entrypoint (jotai recreates its store per Provider instance, so re-keying above
  * it would wipe atom state), and above the page/app content.
  *
- * Mechanism: `i18next.changeLanguage` is synchronous with bundled resources, so we apply it
- * during render (guarded) and re-key the subtree on the RESOLVED locale. This makes the
- * remounted children paint in the new language on their first render — the reason we key on
- * the resolved locale (not the raw `uiLanguage`) is that "auto"→"en" and explicit "en" must
+ * Mechanism: switching locales is synchronous (both dictionaries are bundled), so we apply
+ * it during render and re-key the subtree on the RESOLVED locale. This makes the remounted
+ * children paint in the new language on their first render — the reason we key on the
+ * resolved locale (not the raw `uiLanguage`) is that "auto"→"en" and explicit "en" must
  * not trigger a spurious remount.
  */
 export function LocaleBoundary({ children }: { children: ReactNode }) {
   const uiLanguage = useAtomValue(configFieldsAtomMap.uiLanguage)
   const resolvedLocale = resolveUiLocale(uiLanguage)
 
-  if (i18next.language !== resolvedLocale) {
-    // Synchronous with bundled resources; the returned promise is already resolved.
-    void changeLanguage(resolvedLocale)
+  if (getActiveLocale() !== resolvedLocale) {
+    void setUiLanguage(uiLanguage)
   }
 
   return <Fragment key={resolvedLocale}>{children}</Fragment>

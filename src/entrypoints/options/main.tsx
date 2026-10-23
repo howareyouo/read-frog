@@ -21,7 +21,7 @@ import App from "./app"
 import { AppShell } from "./app-shell"
 import { SettingsSearch } from "./command-palette/settings-search"
 import { ScrollRestoration } from "./navigation/scroll-restoration"
-import "@fontsource-variable/inter/index.css"
+import "@/assets/styles/inter-latin.css"
 import "@/assets/styles/theme.css"
 import "./style.css"
 

@@ -313,8 +313,84 @@
     .animate-subtitle-pending-breath,
     .animate-subtitle-pending-appear,
     .animate-subtitle-fade-in,
-    .animate-ring-flash
+    .animate-ring-flash,
+    .animate-rf-thinking-morph,
+    .animate-rf-pop-in,
+    .animate-rf-tooltip-in,
+    .animate-rf-fade-in
   ) {
     animation: none;
   }
+}
+
+/* Shared keyframes for components that used to animate through `motion`:
+   every Tailwind entry imports this file, so content scripts and extension
+   pages can all rely on these classes.
+
+   `rf-thinking-morph` interpolates the `d` attribute of the ThinkingIcon path.
+   The three shapes share an identical command structure (M + 4×C + Z, 26
+   numbers each), which is what lets CSS interpolate between them. */
+@keyframes rf-thinking-morph {
+  0%,
+  100% {
+    d: path("M 12 8 C 14.21 8 16 9.79 16 12 C 16 14.21 14.21 16 12 16 C 9.79 16 8 14.21 8 12 C 8 9.79 9.79 8 12 8 Z");
+  }
+  25%,
+  75% {
+    d: path("M 12 12 C 14 8.5 19 8.5 19 12 C 19 15.5 14 15.5 12 12 C 10 8.5 5 8.5 5 12 C 5 15.5 10 15.5 12 12 Z");
+  }
+  50% {
+    d: path("M 12 16 C 14.21 16 16 14.21 16 12 C 16 9.79 14.21 8 12 8 C 9.79 8 8 9.79 8 12 C 8 14.21 9.79 16 12 16 Z");
+  }
+}
+
+/* Popover/menu entrance: drops in from 4px above with a slight vertical squash. */
+@keyframes rf-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scaleY(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Tooltip/hover-hint entrance: rises in from 4px below. */
+@keyframes rf-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rf-thinking-morph {
+  animation: rf-thinking-morph 6s ease-in-out infinite;
+}
+
+.animate-rf-pop-in {
+  animation: rf-pop-in 120ms ease-out;
+}
+
+.animate-rf-tooltip-in {
+  animation: rf-tooltip-in 100ms ease-out;
+}
+
+/* Pure opacity fade, for layers that move via `left`/`top` transitions and must
+   not translate on entrance. */
+@keyframes rf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-rf-fade-in {
+  animation: rf-fade-in 80ms ease-out;
 }

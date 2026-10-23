@@ -1,4 +1,3 @@
-import { deepmerge } from "deepmerge-ts"
 import { useAtom } from "jotai"
 import { DebouncedColorPicker } from "@/components/debounced-color-picker"
 import { useCommittedDraft } from "@/components/form/use-committed-draft"
@@ -22,6 +21,7 @@ import {
   SUBTITLE_FONT_FAMILY_OPTIONS,
 } from "@/utils/constants/subtitles"
 import { i18n } from "@/utils/i18n"
+import { deepmerge } from "@/utils/merge"
 
 const FONT_FAMILY_OPTIONS = SUBTITLE_FONT_FAMILY_OPTIONS
 

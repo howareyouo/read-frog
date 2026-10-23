@@ -1,4 +1,4 @@
-import { Icon } from "@iconify/react"
+import { Icon } from "@/components/icons/icon"
 import {
   DialogContent,
   DialogDescription,

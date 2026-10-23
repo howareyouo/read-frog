@@ -1,5 +1,5 @@
-import { Icon } from "@iconify/react"
 import type { ReactNode } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/base-ui/tooltip"
 import { cn } from "@/utils/styles/utils"
 

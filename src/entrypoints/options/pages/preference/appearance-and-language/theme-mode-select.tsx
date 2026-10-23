@@ -1,5 +1,5 @@
-import { Icon } from "@iconify/react"
 import type { ComponentProps } from "react"
+import { Icon } from "@/components/icons/icon"
 import { useTheme } from "@/components/providers/theme-provider"
 import {
   Select,

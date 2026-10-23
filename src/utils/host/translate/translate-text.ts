@@ -25,10 +25,10 @@ import { getPageTranslationSessionId } from "./translation-session"
  * below the general threshold, to catch short phrases like "Bonjour!" or
  * "こんにちは".
  *
- * Left at 10 even though detection is now franc-only. Raising it looks right
- * for Latin script — franc on ten characters is close to a coin flip there —
+ * Left at 10 even though detection is now CLD-only. Raising it looks right
+ * for Latin script — CLD on ten characters is close to a coin flip there —
  * but this counts characters, and ten characters of Han, kana or Hangul is
- * plenty for franc precisely because the script alone is near-decisive. A flat
+ * plenty for CLD precisely because the script alone is near-decisive. A flat
  * character count cannot express that difference, so tuning it needs a
  * script-aware rule rather than a bigger number.
  */
@@ -37,7 +37,7 @@ export const MIN_LENGTH_FOR_SKIP_LANGUAGE_DETECTION = 10
 /**
  * Check if text should be skipped based on language detection.
  *
- * Deliberately franc-only. This runs once per paragraph, so routing it through
+ * Deliberately CLD-only. This runs once per paragraph, so routing it through
  * an LLM cost one hosted call per paragraph — hundreds per article, against the
  * same weekly pool that funds page translation and subtitles, and against a
  * BYOK user's own budget. The whole-page source language is detected once and

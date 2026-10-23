@@ -1,6 +1,6 @@
-import { Icon } from "@iconify/react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { Activity, useMemo, useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/base-ui/alert"
 import {
   AlertDialog,

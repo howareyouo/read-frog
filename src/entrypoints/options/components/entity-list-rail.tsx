@@ -1,5 +1,5 @@
-import { Icon } from "@iconify/react"
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { Icon } from "@/components/icons/icon"
 import { cn } from "@/utils/styles/utils"
 
 interface EntityListRailProps {
