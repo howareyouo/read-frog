@@ -1,6 +1,7 @@
 import { browser } from "#imports"
 import type { Config } from "@/types/config/config"
 import { getLocalConfig } from "@/utils/config/storage"
+import { SELECTION_ENABLED_WINDOW_KEY } from "@/utils/content-entry"
 import { logger } from "@/utils/logger"
 import { isSiteEnabled, SITE_CONTROL_URL_WINDOW_KEY } from "@/utils/site-control"
 import { matchDomainPattern } from "@/utils/url"
@@ -9,12 +10,7 @@ import { resolveSiteControlUrl } from "./iframe-injection-utils"
 import { getPageTranslationEnabled } from "./page-translation-state"
 
 const HOST_CONTENT_SCRIPT_FILE = "/content-scripts/host.js" as const
-const SELECTION_CONTENT_SCRIPT_FILE = "/content-scripts/selection.js" as const
 const IFRAME_FULL_RUNTIME_AUTO_INJECT_PATTERNS = ["browse.library.kiwix.org"] as const
-
-type IframeContentScriptFile =
-  | typeof HOST_CONTENT_SCRIPT_FILE
-  | typeof SELECTION_CONTENT_SCRIPT_FILE
 
 const pendingScriptDocumentKeys = new Set<string>()
 const injectedDocumentKeysByFrameAndScript = new Map<string, string>()
@@ -44,15 +40,12 @@ function getFrameInjectionKey(details: { tabId: number; frameId: number }) {
   return `${details.tabId}:${details.frameId}`
 }
 
-function getScriptDocumentInjectionKey(
-  details: FrameInjectionDetails,
-  file: IframeContentScriptFile,
-) {
-  return `${getDocumentInjectionKey(details)}:${file}`
+function getScriptDocumentInjectionKey(details: FrameInjectionDetails) {
+  return `${getDocumentInjectionKey(details)}:${HOST_CONTENT_SCRIPT_FILE}`
 }
 
-function getScriptFrameInjectionKey(details: FrameInjectionDetails, file: IframeContentScriptFile) {
-  return `${getFrameInjectionKey(details)}:${file}`
+function getScriptFrameInjectionKey(details: FrameInjectionDetails) {
+  return `${getFrameInjectionKey(details)}:${HOST_CONTENT_SCRIPT_FILE}`
 }
 
 function clearTabDocumentState(tabId: number) {
@@ -101,8 +94,14 @@ function getParentFrameIdHint(details: object): number | undefined {
   return undefined
 }
 
-function setInjectedSiteControlUrl(propertyName: string, siteControlUrl: string) {
-  ;(globalThis as Record<string, unknown>)[propertyName] = siteControlUrl
+function setInjectedContentFlags(
+  siteControlUrlKey: string,
+  siteControlUrl: string,
+  selectionEnabledKey: string,
+  selectionEnabled: boolean,
+) {
+  ;(globalThis as Record<string, unknown>)[siteControlUrlKey] = siteControlUrl
+  ;(globalThis as Record<string, unknown>)[selectionEnabledKey] = selectionEnabled
 }
 
 function getInjectionTarget(details: FrameInjectionDetails) {
@@ -123,15 +122,6 @@ function isFullRuntimeAutoInjectUrl(url: string | undefined): url is string {
   return IFRAME_FULL_RUNTIME_AUTO_INJECT_PATTERNS.some((pattern) =>
     matchDomainPattern(url, pattern),
   )
-}
-
-function getIframeContentScriptFiles(includeSelectionContent: boolean): IframeContentScriptFile[] {
-  // Selection is its own content script file: full-runtime frames get host.js
-  // AND selection.js, translation-only frames host.js only. Whether selection
-  // runs is decided by which files are injected, not by a window flag.
-  return includeSelectionContent
-    ? [HOST_CONTENT_SCRIPT_FILE, SELECTION_CONTENT_SCRIPT_FILE]
-    : [HOST_CONTENT_SCRIPT_FILE]
 }
 
 async function getShouldInjectHostContentIntoTabIframes(
@@ -158,24 +148,23 @@ async function injectHostContentIntoFrame(
   options: InjectHostContentIntoTabIframesOptions = {},
 ) {
   const documentKey = getDocumentInjectionKey(details)
-  const filesToInject = getIframeContentScriptFiles(
-    options.includeSelectionContent ?? false,
-  ).filter((file) => {
-    const scriptDocumentKey = getScriptDocumentInjectionKey(details, file)
-    const scriptFrameKey = getScriptFrameInjectionKey(details, file)
-    return (
-      !pendingScriptDocumentKeys.has(scriptDocumentKey) &&
-      injectedDocumentKeysByFrameAndScript.get(scriptFrameKey) !== documentKey
-    )
-  })
+  const scriptDocumentKey = getScriptDocumentInjectionKey(details)
+  const scriptFrameKey = getScriptFrameInjectionKey(details)
+  const alreadyInjected =
+    pendingScriptDocumentKeys.has(scriptDocumentKey) ||
+    injectedDocumentKeysByFrameAndScript.get(scriptFrameKey) === documentKey
 
-  if (filesToInject.length === 0) {
+  if (alreadyInjected) {
     return
   }
 
-  for (const file of filesToInject) {
-    pendingScriptDocumentKeys.add(getScriptDocumentInjectionKey(details, file))
-  }
+  // The merged content script decides whether to start selection from this
+  // flag. Full-runtime frames (URL matching an auto-inject pattern) always
+  // get it, even when reached through a generic host-only injection path.
+  const includeSelection =
+    (options.includeSelectionContent ?? false) || isFullRuntimeAutoInjectUrl(details.url)
+
+  pendingScriptDocumentKeys.add(scriptDocumentKey)
 
   try {
     let siteControlUrl: string | undefined
@@ -214,32 +203,31 @@ async function injectHostContentIntoFrame(
         typeof browser.scripting.executeScript
       >[0]["target"]
 
-      // Must land before the content script files so both entrypoints' gates
-      // see the owner-page URL during the same synchronous pass they run in.
+      // Must land before the content script file so the gate sees the
+      // owner-page URL and the merged script knows whether to start selection
+      // during the same synchronous pass it runs in.
       await browser.scripting.executeScript({
         target,
-        func: setInjectedSiteControlUrl,
-        args: [SITE_CONTROL_URL_WINDOW_KEY, siteControlUrl],
+        func: setInjectedContentFlags,
+        args: [
+          SITE_CONTROL_URL_WINDOW_KEY,
+          siteControlUrl,
+          SELECTION_ENABLED_WINDOW_KEY,
+          includeSelection,
+        ],
       })
 
-      for (const file of filesToInject) {
-        await browser.scripting.executeScript({
-          target,
-          files: [file],
-        })
+      await browser.scripting.executeScript({
+        target,
+        files: [HOST_CONTENT_SCRIPT_FILE],
+      })
 
-        injectedDocumentKeysByFrameAndScript.set(
-          getScriptFrameInjectionKey(details, file),
-          documentKey,
-        )
-      }
+      injectedDocumentKeysByFrameAndScript.set(scriptFrameKey, documentKey)
     } catch (error) {
       logger.warn("[Background][IframeInjection] Failed to inject iframe content scripts", error)
     }
   } finally {
-    for (const file of filesToInject) {
-      pendingScriptDocumentKeys.delete(getScriptDocumentInjectionKey(details, file))
-    }
+    pendingScriptDocumentKeys.delete(scriptDocumentKey)
   }
 }
 

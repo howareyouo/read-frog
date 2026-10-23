@@ -12,6 +12,14 @@ export interface ContentScriptGateResult {
 }
 
 /**
+ * Window flag set by the background right before programmatically injecting
+ * the merged content script into an iframe: `true` for full-runtime frames
+ * (selection UI included), `false` for translation-only frames. Manifest
+ * injections (top frames) never set it — `undefined` means selection runs.
+ */
+export const SELECTION_ENABLED_WINDOW_KEY = "__READ_FROG_SELECTION_ENABLED__" as const
+
+/**
  * Shared bootstrap gate for content-script entrypoints: the double-injection
  * guard (manifest-based + programmatic injection), the config read and the
  * site-control check.

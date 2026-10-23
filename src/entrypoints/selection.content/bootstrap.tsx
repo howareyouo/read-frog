@@ -21,12 +21,6 @@ import { setupExternalSelectionSource } from "./external-selection-source"
 // eslint-disable-next-line import/no-mutable-exports
 export let shadowWrapper: HTMLElement | null = null
 
-declare global {
-  interface Window {
-    __READ_FROG_SELECTION_INJECTED__?: boolean
-  }
-}
-
 async function mountSelectionUI(ctx: ContentScriptContext) {
   const themeMode = await getLocalThemeMode()
 
@@ -68,13 +62,12 @@ async function mountSelectionUI(ctx: ContentScriptContext) {
 }
 
 /**
- * Selection UI bootstrap, run by the selection.content entrypoint (manifest
+ * Selection UI bootstrap, run by the host.content entrypoint (manifest
  * injection on top frames, programmatic background injection for full-runtime
- * iframes). The double-injection guard lives in the entrypoint's gate.
+ * iframes). Double-injection is guarded by the entrypoint's host gate.
  */
 export async function bootstrapSelectionContent(ctx: ContentScriptContext, config: Config | null) {
   ctx.onInvalidated(() => {
-    window.__READ_FROG_SELECTION_INJECTED__ = false
     clearEffectiveSiteControlUrl()
   })
 
