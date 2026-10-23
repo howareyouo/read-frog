@@ -10,7 +10,6 @@ import type {
   LLMProviderModels,
   LLMProviderTypes,
   ProviderConfig,
-  ProviderSponsorConfig,
   ProvidersConfig,
 } from "@/types/config/provider"
 import {
@@ -43,7 +42,6 @@ export const PROVIDER_ITEMS: Record<
     logo: (theme: Theme) => string
     name: string
     website: string
-    sponsor?: ProviderSponsorConfig
     /**
      * Where someone signs up for or copies this provider's key. Only providers that set it get
      * the "Get API key" button next to the API key field — absent means no button, because most

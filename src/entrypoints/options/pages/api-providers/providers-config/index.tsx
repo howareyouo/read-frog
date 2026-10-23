@@ -1,7 +1,6 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { useContext, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation } from "react-router"
-import { SponsorBadge } from "@/components/badges/sponsor-badge"
 import { Icon } from "@/components/icons/icon"
 import ProviderIcon from "@/components/provider-icon"
 import { useTheme } from "@/components/providers/theme-provider"
@@ -254,7 +253,6 @@ function ProviderCard({
   const { theme } = useTheme()
   const [selectedProviderId, setSelectedProviderId] = useAtom(selectedProviderIdAtom)
   const setProviderConfig = useSetAtom(providerConfigAtom(id))
-  const sponsor = API_PROVIDER_ITEMS[provider].sponsor
   const switchRef = useRef<HTMLButtonElement>(null)
 
   const {
@@ -294,25 +292,17 @@ function ProviderCard({
       onClick={() => setSelectedProviderId(id)}
     >
       <EntityListItem.Badges>
-        <>
-          {sponsor?.sponsoring && (
-            <SponsorBadge
-              labelI18nKey={sponsor.badgeI18nKey}
-              className="absolute -top-2 left-2 text-[10px]"
-            />
+        <FeatureCountBadge count={totalAssigned}>
+          {assignedFeatures.map((key) => (
+            <li key={key}>{i18n.t(getFeatureLabelI18nKey(key))}</li>
+          ))}
+          {isLanguageDetectionProvider && (
+            <li>{i18n.t("options.apiProviders.languageDetection.title")}</li>
           )}
-          <FeatureCountBadge count={totalAssigned}>
-            {assignedFeatures.map((key) => (
-              <li key={key}>{i18n.t(getFeatureLabelI18nKey(key))}</li>
-            ))}
-            {isLanguageDetectionProvider && (
-              <li>{i18n.t("options.apiProviders.languageDetection.title")}</li>
-            )}
-            {assignedCustomActions.map((action) => (
-              <li key={action.id}>{action.name}</li>
-            ))}
-          </FeatureCountBadge>
-        </>
+          {assignedCustomActions.map((action) => (
+            <li key={action.id}>{action.name}</li>
+          ))}
+        </FeatureCountBadge>
       </EntityListItem.Badges>
       <EntityListItem.Content>
         <ProviderIcon

@@ -71,25 +71,12 @@ options:
     description: 添加 Read Frog 可以调用的提供商，也可以添加兼容 Chat Completions 的自定义 API。
     configTitle: 提供商配置
     addProvider: 添加提供商
-    builtInProvider: 内置提供商
-    sponsorCta: 获取高速性价比 AI
     setApiKeyWarning:
       message: 请在 $1 页面设置 API Key
     badges:
       featureCount: $1 个功能
-      sponsor: 赞助
     dialog:
       title: 添加新提供商
-      groups:
-        builtInProviders:
-          title: 内置 LLM 提供商
-          description: 内置的大语言模型提供商，无需填写大部分配置比如 Base URL
-        compatibleProviders:
-          title: 兼容 API 提供商
-          description: 兼容 Chat Completions 的 API 使用自定义 Chat Complete，Open Responses API 使用自定义 Responses。
-        pureTranslationProviders:
-          title: 纯翻译提供商
-          description: 专注于翻译功能的提供商，没有大语言模型能力
     form:
       fields:
         name: 名称

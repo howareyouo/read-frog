@@ -1,6 +1,5 @@
 import ProviderIcon from "@/components/provider-icon"
 import { useTheme } from "@/components/providers/theme-provider"
-import { Button } from "@/components/ui/base-ui/button"
 import { env } from "@/env"
 import type { APIProviderTypes } from "@/types/config/provider"
 import {
@@ -11,26 +10,15 @@ import {
 } from "@/utils/constants/providers"
 import { i18n } from "@/utils/i18n"
 
-export function ConfigHeader({
-  providerType,
-  apiKey,
-}: {
-  providerType: APIProviderTypes
-  apiKey?: string
-}) {
+export function ConfigHeader({ providerType }: { providerType: APIProviderTypes }) {
   const tutorialUrl = getHowToConfigureURL(providerType)
   const { theme } = useTheme()
   const providerItem = PROVIDER_ITEMS[providerType]
-  const sponsor = providerItem.sponsor?.sponsoring ? providerItem.sponsor : undefined
-  const sponsorReferUrl = sponsor?.referUrl
-  const providerWebsiteUrl = sponsorReferUrl ?? providerItem.website
-  const hasAPIKey = typeof apiKey === "string" && apiKey.length > 0
-  const shouldShowSponsorCTA = sponsorReferUrl && !hasAPIKey
 
   return (
     <div className="flex items-start justify-between">
       <a
-        href={providerWebsiteUrl}
+        href={providerItem.website}
         className="flex items-center gap-2"
         target="_blank"
         rel="noreferrer"
@@ -43,25 +31,15 @@ export function ConfigHeader({
           textClassName="font-medium group-hover:text-link"
         />
       </a>
-      {shouldShowSponsorCTA ? (
-        <Button
-          variant="brand"
-          size="sm"
-          render={<a href={sponsorReferUrl} target="_blank" rel="noreferrer" />}
+      {tutorialUrl && (
+        <a
+          href={tutorialUrl}
+          className="text-xs text-link hover:opacity-90"
+          target="_blank"
+          rel="noreferrer"
         >
-          {i18n.t((sponsor?.ctaI18nKey ?? "options.apiProviders.sponsorCta") as never)}
-        </Button>
-      ) : (
-        tutorialUrl && (
-          <a
-            href={tutorialUrl}
-            className="text-xs text-link hover:opacity-90"
-            target="_blank"
-            rel="noreferrer"
-          >
-            {i18n.t("options.apiProviders.howToConfigure")}
-          </a>
-        )
+          {i18n.t("options.apiProviders.howToConfigure")}
+        </a>
       )}
     </div>
   )

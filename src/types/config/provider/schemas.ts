@@ -12,18 +12,6 @@ import type {
 } from "./constants"
 import { LLM_PROVIDER_MODELS } from "./constants"
 
-export const providerSponsorConfigSchema = z.object({
-  sponsoring: z.boolean(),
-  referUrl: z.url(),
-  /**
-   * i18n keys overriding the generic "Sponsor" badge and its call to action, for a sponsor
-   * whose offer is worth naming outright. Absent means the shared wording.
-   */
-  badgeI18nKey: z.string().optional(),
-  ctaI18nKey: z.string().optional(),
-})
-export type ProviderSponsorConfig = z.infer<typeof providerSponsorConfigSchema>
-
 /* ──────────────────────────────
   Providers config schema
   ────────────────────────────── */
