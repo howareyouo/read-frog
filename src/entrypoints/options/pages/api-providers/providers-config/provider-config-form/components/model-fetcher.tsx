@@ -325,7 +325,7 @@ export function ModelFetcher({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex items-center gap-1.5">
         <Button
           type="button"
@@ -347,7 +347,7 @@ export function ModelFetcher({
           className="h-7 min-w-0 flex-1 px-2 py-0 text-xs"
         />
       </div>
-      <div className="max-h-56 overflow-auto rounded-md border">
+      <div className="min-h-0 flex-1 overflow-auto rounded-md border">
         {visibleModels.length === 0 ? (
           <div className="px-2 py-3 text-center text-sm text-muted-foreground">
             {i18n.t("options.apiProviders.form.models.noSearchResults")}

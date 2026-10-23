@@ -82,7 +82,7 @@ export function EntityListRail({ children, className, containerClassName }: Enti
         ref={scrollContainerRef}
         style={{ overflowAnchor: "none" }}
         className={cn(
-          "max-h-[720px] [scrollbar-width:none] overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+          "max-h-[920px] [scrollbar-width:none] overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
           containerClassName,
         )}
       >

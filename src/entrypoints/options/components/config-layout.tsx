@@ -10,7 +10,7 @@ export interface ConfigLayoutProps {
 
 export function ConfigLayout({ title, description, children, className }: ConfigLayoutProps) {
   return (
-    <div className={cn("flex w-full flex-col gap-11", className)}>
+    <div className={cn("flex w-full flex-col gap-8", className)}>
       <header className="space-y-4">
         <h1 className="text-2xl font-medium text-foreground">{title}</h1>
         <p className="text-base text-muted-foreground">{description}</p>

@@ -121,7 +121,12 @@ export function ProvidersConfig() {
       title={i18n.t("options.apiProviders.configTitle")}
       description={i18n.t("options.apiProviders.description")}
     >
-      <EntityEditorLayout list={<ProviderCardList />} editor={editor} />
+      <EntityEditorLayout
+        className="max-h-[920px]"
+        list={<ProviderCardList />}
+        editor={editor}
+        editorClassName="flex flex-col"
+      />
     </ConfigItem>
   )
 }
@@ -189,7 +194,7 @@ function ProviderCardList() {
   }, [selectedProviderId, setSelectedProviderId])
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogTrigger
           render={
@@ -207,7 +212,10 @@ function ProviderCardList() {
         </DialogTrigger>
         <AddProviderDialog onClose={() => setIsAddDialogOpen(false)} />
       </Dialog>
-      <EntityListRail>
+      <EntityListRail
+        className="flex min-h-0 flex-1 flex-col"
+        containerClassName="max-h-full min-h-0 flex-1"
+      >
         <SortableList
           list={apiProvidersConfig}
           setList={handleReorder}

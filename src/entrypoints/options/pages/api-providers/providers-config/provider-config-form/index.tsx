@@ -212,8 +212,8 @@ function EditableProviderConfig({ providerConfig }: { providerConfig: APIProvide
         delete={handleDelete}
       >
         <ProviderEditor.Form>
-          <EntityEditor.Root>
-            <EntityEditor.Body>
+          <EntityEditor.Root className="min-h-0">
+            <EntityEditor.Body className="min-h-0 flex-1 overflow-y-auto">
               <ProviderEditor.ConfigHeader />
               <ProviderEditor.NameField />
               <ProviderEditor.DescriptionField />
