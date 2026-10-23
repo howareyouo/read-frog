@@ -122,7 +122,6 @@ export function ProvidersConfig() {
       description={i18n.t("options.apiProviders.description")}
     >
       <EntityEditorLayout
-        className="max-h-[920px]"
         list={<ProviderCardList />}
         editor={editor}
         editorClassName="flex flex-col"

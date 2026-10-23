@@ -18,7 +18,7 @@ function Body({ children, className }: { children: React.ReactNode; className?: 
 }
 
 function Footer({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("mt-8 flex justify-between", className)}>{children}</div>
+  return <div className={cn("mt-4 flex justify-between", className)}>{children}</div>
 }
 
 function Empty({ children, className }: { children: React.ReactNode; className?: string }) {
