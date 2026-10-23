@@ -68,18 +68,16 @@ options:
   apiProviders:
     title: API Providers
     pageDescription: Connect the AI services Read Frog calls, then choose which one runs each feature.
-    description: Add the providers Read Frog can call. Over 20 are built in, with custom support for Chat Completions-compatible and Open Responses APIs.
+    description: Add the providers Read Frog can call, with custom support for Chat Completions-compatible APIs.
     configTitle: Provider config
     addProvider: Add provider
     builtInProvider: Built-in provider
     sponsorCta: Get fast, cost-effective AI
-    sponsorCtaJalapenoCloud: Get 50% Off GLM 5.2
     setApiKeyWarning:
       message: Please set your API key on the $1 page
     badges:
       featureCount: $1 features
       sponsor: Sponsor
-      sponsorJalapenoCloud: $$2 Free
     dialog:
       title: Add new provider
       groups:
@@ -160,38 +158,10 @@ options:
     providers:
       name:
         customChatComplete: Custom Chat Complete
-        customResponses: Custom Responses
       description:
-        openai: Provides models like GPT-4o
-        azure: Azure-hosted OpenAI models through your deployments
-        deepseek: Recommend to use in China
-        openrouter: Unified interface for multiple LLM providers with pay-per-use pricing
-        google: Google's flagship AI models with advanced reasoning capabilities
-        xai: Elon Musk's AI company offering Grok models with real-time data access
-        atlascloud: Unified OpenAI-compatible access to newer DeepSeek, Kimi, Qwen, Doubao, GLM, and other models
-        jalapenocloud: Enterprise-grade AI used by top teams — now made for you!
-        siliconflow: High-performance inference platform for Chinese and international models
-        tensdaq: Revolutionary bidding AI MaaS platform with market-driven pricing, eliminating high-cost fixed pricing
         openaiCompatible: Connect to a custom endpoint compatible with the OpenAI Chat Completions API
-        openResponses: Connect to a custom endpoint compatible with the Open Responses API
         deeplx: Unofficial DeepL API
         deepl: Official DeepL API
-        bedrock: AWS managed service for enterprise-grade foundation models
-        groq: Specialized hardware for ultra-fast LLM inference speeds
-        deepinfra: Cost-effective cloud inference for popular open-source models
-        mistral: European AI company specializing in efficient multilingual models
-        togetherai: Collaborative platform for running and fine-tuning open-source models
-        cohere: Enterprise-focused AI with strong multilingual and RAG capabilities
-        fireworks: Production-ready inference platform for open-source models
-        cerebras: Ultra-fast AI inference for rapid translation and text analysis
-        replicate: Access to diverse open-source models for specialized translation tasks
-        perplexity: Real-time knowledge-enhanced AI for contextual translations and reading assistance
-        vercel: Optimized AI models for web content translation and analysis
-        volcengine: ByteDance's cloud AI platform offering Doubao models for translation and reading
-        minimax: MiniMax AI platform offering advanced MiniMax-M2 models for text generation
-        alibaba: Alibaba Cloud's Qwen model series with advanced reasoning and multilingual capabilities
-        moonshotai: Moonshot AI's Kimi model series with strong reasoning and long-context capabilities
-        huggingface: Hugging Face Inference API providing access to thousands of open-source models
     apiKey:
       showAPIKey: Show API key
       hideAPIKey: Hide API key

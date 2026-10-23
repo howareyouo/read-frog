@@ -66,37 +66,44 @@ export const baseOpenAICompatibleLLMProviderConfigSchema = baseAPIProviderConfig
   baseURL: z.string(),
 })
 
+// Providers removed from the preset lists (openrouter, minimax, siliconflow,
+// tensdaq, volcengine, atlascloud, jalapenocloud) still appear in configs
+// stored by older versions. They speak the same OpenAI-compatible protocol, so
+// downgrading keeps them working verbatim — baseURL, model and keys survive —
+// instead of failing validation and resetting the whole config.
+const LEGACY_HOSTED_LLM_PROVIDER_TYPES = [
+  "jalapenocloud",
+  "atlascloud",
+  "openrouter",
+  "minimax",
+  "siliconflow",
+  "tensdaq",
+  "volcengine",
+] as const
+
+function downgradeLegacyHostedProviders(providers: unknown): unknown[] {
+  if (!Array.isArray(providers)) {
+    return []
+  }
+
+  return providers.map((providerConfig) => {
+    if (
+      providerConfig &&
+      typeof providerConfig === "object" &&
+      LEGACY_HOSTED_LLM_PROVIDER_TYPES.includes(
+        (providerConfig as { provider?: unknown }).provider as never,
+      )
+    ) {
+      return { ...providerConfig, provider: "openai-compatible" }
+    }
+
+    return providerConfig
+  })
+}
+
 const llmProviderConfigSchemaList = [
   baseOpenAICompatibleLLMProviderConfigSchema.extend({
-    provider: z.literal("atlascloud"),
-    model: providerModelSchema,
-  }),
-  baseOpenAICompatibleLLMProviderConfigSchema.extend({
-    provider: z.literal("jalapenocloud"),
-    model: providerModelSchema,
-  }),
-  baseOpenAICompatibleLLMProviderConfigSchema.extend({
-    provider: z.literal("siliconflow"),
-    model: providerModelSchema,
-  }),
-  baseOpenAICompatibleLLMProviderConfigSchema.extend({
-    provider: z.literal("tensdaq"),
-    model: providerModelSchema,
-  }),
-  baseOpenAICompatibleLLMProviderConfigSchema.extend({
-    provider: z.literal("volcengine"),
-    model: providerModelSchema,
-  }),
-  baseOpenAICompatibleLLMProviderConfigSchema.extend({
     provider: z.literal("openai-compatible"),
-    model: providerModelSchema,
-  }),
-  baseOpenAICompatibleLLMProviderConfigSchema.extend({
-    provider: z.literal("openrouter"),
-    model: providerModelSchema,
-  }),
-  baseOpenAICompatibleLLMProviderConfigSchema.extend({
-    provider: z.literal("minimax"),
     model: providerModelSchema,
   }),
 ] as const
@@ -132,7 +139,7 @@ export const apiProviderConfigItemSchema = z.discriminatedUnion(
 export const providerConfigItemSchema = z.discriminatedUnion("provider", providerConfigSchemaList)
 
 export const providersConfigSchema = z
-  .array(providerConfigItemSchema)
+  .preprocess(downgradeLegacyHostedProviders, z.array(providerConfigItemSchema))
   .superRefine((providers, ctx) => {
     const idSet = new Set<string>()
     providers.forEach((provider, index) => {

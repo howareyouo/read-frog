@@ -1,10 +1,7 @@
-import { APP_NAME } from "@read-frog/definitions"
 import { camelCase } from "case-anything"
 import customProviderLogo from "@/assets/providers/custom-provider.svg?url&no-inline"
 import deeplxLogoDark from "@/assets/providers/deeplx-dark.svg?url&no-inline"
 import deeplxLogoLight from "@/assets/providers/deeplx-light.svg?url&no-inline"
-import jalapenoCloudLogo from "@/assets/providers/jalapeno-cloud.png?url&no-inline"
-import tensdaqLogoColor from "@/assets/providers/tensdaq-color.svg?url&no-inline"
 import { env } from "@/env"
 import type {
   AllProviderTypes,
@@ -35,29 +32,8 @@ import { i18n } from "@/utils/i18n"
 import { getLobeIconsCDNUrlFn } from "../logo"
 
 const DEFAULT_LLM_PROVIDER_MODELS: LLMProviderModels = {
-  openrouter: {
-    model: "x-ai/grok-4-fast:free",
-  },
-  jalapenocloud: {
-    model: "GLM-5.2",
-  },
-  atlascloud: {
-    model: "deepseek-ai/deepseek-v4-flash",
-  },
   "openai-compatible": {
     model: CUSTOM_MODEL_PLACEHOLDER,
-  },
-  siliconflow: {
-    model: "Qwen/Qwen3-Next-80B-A3B-Instruct",
-  },
-  tensdaq: {
-    model: "Qwen3-30B-A3B-Instruct-2507",
-  },
-  volcengine: {
-    model: "doubao-seed-1-6-flash-250828",
-  },
-  minimax: {
-    model: "MiniMax-M2.7",
   },
 }
 
@@ -96,58 +72,10 @@ export const PROVIDER_ITEMS: Record<
     name: "DeepL",
     website: "https://www.deepl.com/pro-api",
   },
-  jalapenocloud: {
-    logo: () => jalapenoCloudLogo,
-    name: "Jalapeno Cloud",
-    website: "https://www.jalapeno-cloud.ai/readfrog",
-    apiKeyUrl: "https://www.jalapeno-cloud.ai/readfrog",
-    sponsor: {
-      sponsoring: true,
-      referUrl: "https://www.jalapeno-cloud.ai/readfrog",
-      // Both default to the generic sponsor wording; Jalapeno names its actual offer instead.
-      badgeI18nKey: "options.apiProviders.badges.sponsorJalapenoCloud",
-      ctaI18nKey: "options.apiProviders.sponsorCtaJalapenoCloud",
-    },
-  },
-  atlascloud: {
-    logo: getLobeIconsCDNUrlFn("atlascloud"),
-    name: "Atlas Cloud",
-    website: "https://readfrog.s.gy/altas",
-    apiKeyUrl: "https://readfrog.s.gy/altas",
-    sponsor: {
-      sponsoring: true,
-      referUrl: "https://readfrog.s.gy/altas",
-    },
-  },
   "openai-compatible": {
     logo: () => customProviderLogo,
     name: "Custom Chat Complete",
     website: `${env.WXT_WEBSITE_URL}/docs/providers/openai-compatible-providers`,
-  },
-  openrouter: {
-    logo: getLobeIconsCDNUrlFn("openrouter"),
-    name: "OpenRouter",
-    website: "https://openrouter.ai/",
-  },
-  minimax: {
-    logo: getLobeIconsCDNUrlFn("minimax-color"),
-    name: "MiniMax",
-    website: "https://platform.minimax.io",
-  },
-  siliconflow: {
-    logo: getLobeIconsCDNUrlFn("siliconcloud-color"),
-    name: "SiliconFlow",
-    website: "https://siliconflow.cn/",
-  },
-  tensdaq: {
-    logo: () => tensdaqLogoColor,
-    name: "Tensdaq",
-    website: "https://dashboard.x-aio.com/zh/register?ref=c356c1daba9a4641a18e",
-  },
-  volcengine: {
-    logo: getLobeIconsCDNUrlFn("volcengine-color"),
-    name: "Volcengine",
-    website: "https://www.volcengine.com/product/doubao",
   },
 }
 
@@ -163,48 +91,6 @@ export const DEFAULT_PROVIDER_CONFIG = {
     name: PROVIDER_ITEMS["microsoft-translate"].name,
     enabled: true,
     provider: "microsoft-translate",
-  },
-  jalapenocloud: {
-    id: "jalapenocloud-default",
-    name: PROVIDER_ITEMS.jalapenocloud.name,
-    enabled: true,
-    provider: "jalapenocloud",
-    baseURL: "https://api.jalapeno-cloud.ai/v1",
-    model: DEFAULT_LLM_PROVIDER_MODELS.jalapenocloud,
-    // Attribution headers are not here on purpose: they are ours to send, not the user's to
-    // configure, so they live in FORCED_PROVIDER_HEADERS and never enter stored config.
-    // Every Jalapeno model is a thinking model. Translation gains nothing from the reasoning
-    // pass and pays for it in latency and output tokens, so it starts off — and unlike the
-    // headers this is a preference, so it is written in where the user can change it.
-    providerOptions: {
-      chat_template_kwargs: {
-        thinking: false,
-      },
-    },
-  },
-  atlascloud: {
-    id: "atlascloud-default",
-    name: PROVIDER_ITEMS.atlascloud.name,
-    enabled: true,
-    provider: "atlascloud",
-    baseURL: "https://api.atlascloud.ai/v1",
-    model: DEFAULT_LLM_PROVIDER_MODELS.atlascloud,
-  },
-  siliconflow: {
-    id: "siliconflow-default",
-    name: PROVIDER_ITEMS.siliconflow.name,
-    enabled: true,
-    provider: "siliconflow",
-    baseURL: "https://api.siliconflow.cn/v1",
-    model: DEFAULT_LLM_PROVIDER_MODELS.siliconflow,
-  },
-  tensdaq: {
-    id: "tensdaq-default",
-    name: PROVIDER_ITEMS.tensdaq.name,
-    enabled: true,
-    provider: "tensdaq",
-    baseURL: "https://tensdaq-api.x-aio.com/v1",
-    model: DEFAULT_LLM_PROVIDER_MODELS.tensdaq,
   },
   "openai-compatible": {
     id: "openai-compatible-default",
@@ -227,30 +113,6 @@ export const DEFAULT_PROVIDER_CONFIG = {
     enabled: true,
     provider: "deepl",
   },
-  openrouter: {
-    id: "openrouter-default",
-    name: PROVIDER_ITEMS.openrouter.name,
-    enabled: true,
-    provider: "openrouter",
-    baseURL: "https://openrouter.ai/api/v1",
-    model: DEFAULT_LLM_PROVIDER_MODELS.openrouter,
-  },
-  volcengine: {
-    id: "volcengine-default",
-    name: PROVIDER_ITEMS.volcengine.name,
-    enabled: true,
-    provider: "volcengine",
-    baseURL: "https://ark.cn-beijing.volces.com/api/v3",
-    model: DEFAULT_LLM_PROVIDER_MODELS.volcengine,
-  },
-  minimax: {
-    id: "minimax-default",
-    name: PROVIDER_ITEMS.minimax.name,
-    enabled: true,
-    provider: "minimax",
-    baseURL: "https://api.minimax.io/v1",
-    model: DEFAULT_LLM_PROVIDER_MODELS.minimax,
-  },
 } as const satisfies Record<AllProviderTypes, ProviderConfig>
 
 export const GOOGLE_TRANSLATE_PROVIDER_ID = DEFAULT_PROVIDER_CONFIG["google-translate"].id
@@ -263,35 +125,17 @@ export const MICROSOFT_TRANSLATE_PROVIDER_ID = DEFAULT_PROVIDER_CONFIG["microsof
  * starts out with belongs in `DEFAULT_PROVIDER_CONFIG[provider].headers` instead, where the user
  * owns it.
  */
-export const FORCED_PROVIDER_HEADERS: Partial<Record<LLMProviderTypes, Record<string, string>>> = {
-  jalapenocloud: {
-    "HTTP-Referer": env.WXT_WEBSITE_URL,
-    "X-Jalapeno-Title": APP_NAME,
-  },
-  openrouter: {
-    "HTTP-Referer": env.WXT_WEBSITE_URL,
-    "X-OpenRouter-Title": APP_NAME,
-  },
-}
+export const FORCED_PROVIDER_HEADERS: Partial<Record<LLMProviderTypes, Record<string, string>>> = {}
 
 export const PROVIDER_URL_PLACEHOLDERS: Partial<Record<APIProviderTypes, string>> = {
-  jalapenocloud: DEFAULT_PROVIDER_CONFIG.jalapenocloud.baseURL,
-  atlascloud: DEFAULT_PROVIDER_CONFIG.atlascloud.baseURL,
-  siliconflow: DEFAULT_PROVIDER_CONFIG.siliconflow.baseURL,
-  tensdaq: DEFAULT_PROVIDER_CONFIG.tensdaq.baseURL,
   "openai-compatible": DEFAULT_PROVIDER_CONFIG["openai-compatible"].baseURL,
   deeplx: DEFAULT_PROVIDER_CONFIG.deeplx.baseURL,
-  openrouter: "https://openrouter.ai/api/v1",
-  volcengine: DEFAULT_PROVIDER_CONFIG.volcengine.baseURL,
-  minimax: DEFAULT_PROVIDER_CONFIG.minimax.baseURL,
 }
 
 export const DEFAULT_PROVIDER_CONFIG_LIST: ProvidersConfig = [
   DEFAULT_PROVIDER_CONFIG["google-translate"],
   DEFAULT_PROVIDER_CONFIG["microsoft-translate"],
-  DEFAULT_PROVIDER_CONFIG.siliconflow,
-  DEFAULT_PROVIDER_CONFIG.jalapenocloud,
-  DEFAULT_PROVIDER_CONFIG.atlascloud,
+  DEFAULT_PROVIDER_CONFIG["openai-compatible"],
 ]
 
 /** Resolve a provider's default description in the active interface language. */

@@ -28,19 +28,21 @@ export default function AddProviderDialog({ onClose }: { onClose: () => void }) 
       <DialogHeader>
         <DialogTitle>{i18n.t("options.apiProviders.dialog.title")}</DialogTitle>
       </DialogHeader>
-      {Object.entries(PROVIDER_GROUPS).map(([groupKey, group]) => (
-        <ProviderButtonGroup
-          key={groupKey}
-          groupTitle={i18n.t(
-            `options.apiProviders.dialog.groups.${groupKey as keyof typeof PROVIDER_GROUPS}.title`,
-          )}
-          groupDescription={i18n.t(
-            `options.apiProviders.dialog.groups.${groupKey as keyof typeof PROVIDER_GROUPS}.description`,
-          )}
-          providerTypes={group.types}
-          handleAddProvider={handleAddProvider}
-        />
-      ))}
+      {Object.entries(PROVIDER_GROUPS)
+        .filter(([, group]) => group.types.length > 0)
+        .map(([groupKey, group]) => (
+          <ProviderButtonGroup
+            key={groupKey}
+            groupTitle={i18n.t(
+              `options.apiProviders.dialog.groups.${groupKey as keyof typeof PROVIDER_GROUPS}.title`,
+            )}
+            groupDescription={i18n.t(
+              `options.apiProviders.dialog.groups.${groupKey as keyof typeof PROVIDER_GROUPS}.description`,
+            )}
+            providerTypes={group.types}
+            handleAddProvider={handleAddProvider}
+          />
+        ))}
     </DialogContent>
   )
 }

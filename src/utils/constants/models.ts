@@ -19,67 +19,10 @@ interface OpenAIGPT5ReasoningEffortPolicy {
 export const CUSTOM_MODEL_PLACEHOLDER = "use-custom-model"
 
 export const LLM_PROVIDER_MODELS = {
-  siliconflow: ["Qwen/Qwen3-Next-80B-A3B-Instruct"],
-  tensdaq: ["Qwen3-30B-A3B-Instruct-2507", "deepseek-v3.1"],
-  atlascloud: [
-    "deepseek-ai/deepseek-v4-flash",
-    "deepseek-ai/deepseek-v4-pro",
-    "moonshotai/Kimi-K2-Instruct",
-    "moonshotai/Kimi-K2-Instruct-0905",
-    "moonshotai/kimi-k2.5",
-    "qwen/qwen3.5-flash",
-    "qwen/qwen3.5-plus",
-    "qwen/qwen3.6-35b-a3b",
-    "qwen/qwen3.6-plus",
-    "qwen/qwen3.7-plus",
-    "bytedance/doubao-seed-2.0-mini-260428",
-    "bytedance/doubao-seed-2.0-lite-260428",
-    "zai-org/glm-4.7",
-    "zai-org/glm-5",
-    "minimaxai/minimax-m2.7",
-    "minimaxai/minimax-m3",
-    "google/gemini-3.1-flash-lite",
-  ],
-  // Jalapeno Cloud addresses models by their catalog name verbatim — the id in an API
-  // call is the same string shown on the models page. Narrowed to what suits translation:
-  // the code-specialised (Kimi-K2.7-Code), vision-first (Qwen3-VL-*) and thinking-only
-  // variants are left out, since neither buys anything here and both cost more per call.
-  jalapenocloud: [
-    "GLM-5.2",
-    "GLM-5.1",
-    "DeepSeek-V4-Flash",
-    "DeepSeek-V4-Pro",
-    "Hy3",
-    "Kimi-K3",
-    "Kimi-K2.5",
-    "MiniMax-M3",
-    "Qwen3.5-27B",
-    "Qwen3.5-35B-A3B",
-    "Qwen3.5-122B-A10B",
-    "Qwen3.5-397B-A17B",
-    "Qwen3-Next-80B-A3B-Instruct",
-  ],
   // No presets on purpose: a generic OpenAI-compatible gateway can expose any
   // model ids, so the only way to pick one is the live models list (ModelFetcher)
   // or a custom id — the sentinel default lives in CUSTOM_MODEL_PLACEHOLDER.
   "openai-compatible": [],
-  openrouter: ["x-ai/grok-4-fast:free", "openai/gpt-4.1-mini"],
-  volcengine: [
-    "doubao-seed-1-6-flash-250828",
-    "doubao-seed-1-6-lite-251015",
-    "doubao-seed-1-6-251015",
-  ],
-  minimax: [
-    "MiniMax-M3",
-    "MiniMax-M2.7",
-    "MiniMax-M2.7-highspeed",
-    "MiniMax-M2.5",
-    "MiniMax-M2.5-highspeed",
-    "MiniMax-M2.1",
-    "MiniMax-M2.1-highspeed",
-    "MiniMax-M2",
-    "MiniMax-M2-Stable",
-  ],
 } as const
 
 export const NON_API_TRANSLATE_PROVIDERS = ["google-translate", "microsoft-translate"] as const

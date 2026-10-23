@@ -26,13 +26,6 @@ export const TRANSLATE_PROVIDER_TYPES = [
   "deeplx",
   "deepl",
   "openai-compatible",
-  "jalapenocloud",
-  "atlascloud",
-  "openrouter",
-  "minimax",
-  "siliconflow",
-  "tensdaq",
-  "volcengine",
 ] as const satisfies Readonly<
   (keyof typeof LLM_PROVIDER_MODELS | (typeof PURE_TRANSLATE_PROVIDERS)[number])[]
 >
@@ -43,29 +36,20 @@ export function isTranslateProvider(provider: string): provider is TranslateProv
 
 const OPENAI_COMPATIBLE_CUSTOM_LLM_PROVIDER_TYPE = "openai-compatible"
 
-const HOSTED_OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES = [
-  "jalapenocloud",
-  "atlascloud",
-  "openrouter",
-  "minimax",
-  "siliconflow",
-  "tensdaq",
-  "volcengine",
-] as const satisfies Readonly<(keyof typeof LLM_PROVIDER_MODELS)[]>
-
+// The hosted LLM presets (openrouter, minimax, siliconflow, tensdaq,
+// volcengine, atlascloud, jalapenocloud) were removed. Configs that still
+// reference them are downgraded to the generic provider by
+// `downgradeLegacyHostedProviders` in the schema, since they speak the same
+// OpenAI-compatible protocol.
 export const LLM_PROVIDER_TYPES = [
   OPENAI_COMPATIBLE_CUSTOM_LLM_PROVIDER_TYPE,
-  ...HOSTED_OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES,
 ] as const satisfies Readonly<(keyof typeof LLM_PROVIDER_MODELS)[]>
 export type LLMProviderTypes = (typeof LLM_PROVIDER_TYPES)[number]
 export function isLLMProvider(provider: string): provider is LLMProviderTypes {
   return LLM_PROVIDER_TYPES.includes(provider)
 }
 
-export const OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES = [
-  OPENAI_COMPATIBLE_CUSTOM_LLM_PROVIDER_TYPE,
-  ...HOSTED_OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES,
-] as const satisfies Readonly<LLMProviderTypes[]>
+export const OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES = LLM_PROVIDER_TYPES
 export type OpenAICompatibleLLMProviderTypes = (typeof OPENAI_COMPATIBLE_LLM_PROVIDER_TYPES)[number]
 export function isOpenAICompatibleLLMProvider(
   provider: string,
