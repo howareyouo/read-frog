@@ -413,8 +413,6 @@ options:
     nodeTranslation:
       title: 段落翻译
       description: 悬停或长按段落，只翻译这一段。
-  overlayTools:
-    title: 悬浮工具
   inputTranslation:
     title: 输入翻译
     pageDescription: 在发送之前，把你在输入框里写的内容翻译好。

@@ -16,7 +16,7 @@ export function PageLayout({
   innerClassName?: string
 }) {
   return (
-    <Container className={cn("w-full pt-12 pb-16", className)}>
+    <Container className={cn("w-full py-12", className)}>
       <ConfigLayout title={title} description={description}>
         <div className={cn("@container", innerClassName)}>{children}</div>
       </ConfigLayout>

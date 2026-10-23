@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider"
 import { RecoveryBoundary } from "@/components/recovery/recovery-boundary"
 import { ToastProvider } from "@/components/ui/base-ui/toast"
 import { TooltipProvider } from "@/components/ui/base-ui/tooltip"
+import { ComposeProviders } from "@/utils/compose-providers"
 import { getLocalConfig } from "@/utils/config/storage"
 import { DEFAULT_CONFIG } from "@/utils/constants/config"
 import { initI18n } from "@/utils/i18n"
@@ -86,35 +87,38 @@ async function initApp() {
 
   renderPersistentReactRoot(
     root,
-    <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <JotaiProvider>
+    <ComposeProviders
+      providers={[
+        (children) => <React.StrictMode>{children}</React.StrictMode>,
+        (children) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+        (children) => <JotaiProvider>{children}</JotaiProvider>,
+        (children) => (
           <ConfigHydrateProvider config={config} themeMode={themeMode}>
-            <HydrateAtoms
-              initialValues={[
-                [isPageTranslatedAtom, isPageTranslated],
-                [isCurrentSiteInPatternsAtom, isInPatterns],
-                [isIgnoreTabAtom, isIgnoreTab],
-                [isCurrentSiteInWhitelistAtom, isInWhitelist],
-                [isCurrentSiteInBlacklistAtom, isInBlacklist],
-              ]}
-            >
-              <ThemeProvider>
-                <TooltipProvider>
-                  <LocaleBoundary>
-                    <ToastProvider>
-                      <RecoveryBoundary>
-                        <App />
-                      </RecoveryBoundary>
-                    </ToastProvider>
-                  </LocaleBoundary>
-                </TooltipProvider>
-              </ThemeProvider>
-            </HydrateAtoms>
+            {children}
           </ConfigHydrateProvider>
-        </JotaiProvider>
-      </QueryClientProvider>
-    </React.StrictMode>,
+        ),
+        (children) => (
+          <HydrateAtoms
+            initialValues={[
+              [isPageTranslatedAtom, isPageTranslated],
+              [isCurrentSiteInPatternsAtom, isInPatterns],
+              [isIgnoreTabAtom, isIgnoreTab],
+              [isCurrentSiteInWhitelistAtom, isInWhitelist],
+              [isCurrentSiteInBlacklistAtom, isInBlacklist],
+            ]}
+          >
+            {children}
+          </HydrateAtoms>
+        ),
+        (children) => <ThemeProvider>{children}</ThemeProvider>,
+        (children) => <TooltipProvider>{children}</TooltipProvider>,
+        (children) => <LocaleBoundary>{children}</LocaleBoundary>,
+        (children) => <ToastProvider>{children}</ToastProvider>,
+        (children) => <RecoveryBoundary>{children}</RecoveryBoundary>,
+      ]}
+    >
+      <App />
+    </ComposeProviders>,
   )
 }
 

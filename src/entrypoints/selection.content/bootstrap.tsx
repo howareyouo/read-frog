@@ -8,6 +8,7 @@ import { ConfigHydrateProvider } from "@/components/providers/config-hydrate-pro
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { TooltipProvider } from "@/components/ui/base-ui/tooltip"
 import type { Config } from "@/types/config/config"
+import { ComposeProviders } from "@/utils/compose-providers"
 import { APP_NAME } from "@/utils/constants/app"
 import { initI18n } from "@/utils/i18n"
 import { LocaleBoundary } from "@/utils/i18n/locale-boundary"
@@ -46,19 +47,22 @@ async function mountSelectionUI(ctx: ContentScriptContext) {
 
       const root = ReactDOM.createRoot(wrapper)
       root.render(
-        <QueryClientProvider client={queryClient}>
-          <JotaiProvider>
-            <ConfigHydrateProvider themeMode={themeMode}>
-              <ThemeProvider container={wrapper}>
-                <TooltipProvider>
-                  <LocaleBoundary>
-                    <App uiContainer={container} portalContainer={shadow} />
-                  </LocaleBoundary>
-                </TooltipProvider>
-              </ThemeProvider>
-            </ConfigHydrateProvider>
-          </JotaiProvider>
-        </QueryClientProvider>,
+        <ComposeProviders
+          providers={[
+            (children) => (
+              <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+            ),
+            (children) => <JotaiProvider>{children}</JotaiProvider>,
+            (children) => (
+              <ConfigHydrateProvider themeMode={themeMode}>{children}</ConfigHydrateProvider>
+            ),
+            (children) => <ThemeProvider container={wrapper}>{children}</ThemeProvider>,
+            (children) => <TooltipProvider>{children}</TooltipProvider>,
+            (children) => <LocaleBoundary>{children}</LocaleBoundary>,
+          ]}
+        >
+          <App uiContainer={container} portalContainer={shadow} />
+        </ComposeProviders>,
       )
       return root
     },

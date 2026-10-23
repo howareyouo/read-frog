@@ -413,8 +413,6 @@ options:
     nodeTranslation:
       title: Paragraph translation
       description: Hover or long-press a paragraph to translate just that one.
-  overlayTools:
-    title: Overlay Tools
   inputTranslation:
     title: Input Translation
     pageDescription: Translate what you type in input boxes before you send it.

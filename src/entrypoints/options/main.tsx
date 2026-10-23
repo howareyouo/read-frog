@@ -9,6 +9,7 @@ import { RecoveryBoundary } from "@/components/recovery/recovery-boundary"
 import { SidebarProvider } from "@/components/ui/base-ui/sidebar"
 import { AnchoredToastProvider, ToastProvider } from "@/components/ui/base-ui/toast"
 import { TooltipProvider } from "@/components/ui/base-ui/tooltip"
+import { ComposeProviders } from "@/utils/compose-providers"
 import { getLocalConfig } from "@/utils/config/storage"
 import { DEFAULT_CONFIG } from "@/utils/constants/config"
 import { initI18n } from "@/utils/i18n"
@@ -37,35 +38,32 @@ async function initApp() {
 
   renderPersistentReactRoot(
     root,
-    <React.StrictMode>
-      <JotaiProvider>
-        <ConfigHydrateProvider config={config} themeMode={themeMode}>
-          <QueryClientProvider client={queryClient}>
-            <HashRouter>
-              <SidebarProvider>
-                <ThemeProvider>
-                  <TooltipProvider>
-                    <LocaleBoundary>
-                      <ToastProvider>
-                        <AnchoredToastProvider>
-                          <RecoveryBoundary>
-                            <ScrollRestoration />
-                            <AppShell>
-                              <App />
-                            </AppShell>
-                            <SettingsSearch />
-                          </RecoveryBoundary>
-                        </AnchoredToastProvider>
-                      </ToastProvider>
-                    </LocaleBoundary>
-                  </TooltipProvider>
-                </ThemeProvider>
-              </SidebarProvider>
-            </HashRouter>
-          </QueryClientProvider>
-        </ConfigHydrateProvider>
-      </JotaiProvider>
-    </React.StrictMode>,
+    <ComposeProviders
+      providers={[
+        (children) => <React.StrictMode>{children}</React.StrictMode>,
+        (children) => <JotaiProvider>{children}</JotaiProvider>,
+        (children) => (
+          <ConfigHydrateProvider config={config} themeMode={themeMode}>
+            {children}
+          </ConfigHydrateProvider>
+        ),
+        (children) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+        (children) => <HashRouter>{children}</HashRouter>,
+        (children) => <SidebarProvider>{children}</SidebarProvider>,
+        (children) => <ThemeProvider>{children}</ThemeProvider>,
+        (children) => <TooltipProvider>{children}</TooltipProvider>,
+        (children) => <LocaleBoundary>{children}</LocaleBoundary>,
+        (children) => <ToastProvider>{children}</ToastProvider>,
+        (children) => <AnchoredToastProvider>{children}</AnchoredToastProvider>,
+        (children) => <RecoveryBoundary>{children}</RecoveryBoundary>,
+      ]}
+    >
+      <ScrollRestoration />
+      <AppShell>
+        <App />
+      </AppShell>
+      <SettingsSearch />
+    </ComposeProviders>,
   )
 }
 

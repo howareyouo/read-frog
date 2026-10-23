@@ -1,28 +1,17 @@
 import { Icon } from "@iconify/react"
 import { Link, useLocation } from "react-router"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/base-ui/collapsible"
-import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from "@/components/ui/base-ui/sidebar"
 import { i18n } from "@/utils/i18n"
 
-const OVERLAY_TOOLS_PATHS = ["/selection-toolbar", "/context-menu"] as const
-
 export function FeaturesNav() {
   const { pathname } = useLocation()
-  const isOverlayToolsActive = OVERLAY_TOOLS_PATHS.includes(pathname)
 
   return (
     <SidebarGroup>
@@ -73,45 +62,27 @@ export function FeaturesNav() {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          <Collapsible defaultOpen={isOverlayToolsActive} className="group/collapsible">
-            <SidebarMenuItem>
-              <CollapsibleTrigger
-                render={
-                  <SidebarMenuButton
-                    isActive={isOverlayToolsActive}
-                    tooltip={i18n.t("options.overlayTools.title")}
-                  />
-                }
-              >
-                <Icon icon="tabler:layers-intersect" />
-                <span>{i18n.t("options.overlayTools.title")}</span>
-                <Icon
-                  icon="tabler:chevron-right"
-                  className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-                />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SidebarMenuSub>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton
-                      render={<Link to="/selection-toolbar" />}
-                      isActive={pathname === "/selection-toolbar"}
-                    >
-                      <span>{i18n.t("options.selectionToolbar.title")}</span>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton
-                      render={<Link to="/context-menu" />}
-                      isActive={pathname === "/context-menu"}
-                    >
-                      <span>{i18n.t("options.contextMenu.title")}</span>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                </SidebarMenuSub>
-              </CollapsibleContent>
-            </SidebarMenuItem>
-          </Collapsible>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link to="/selection-toolbar" />}
+              isActive={pathname === "/selection-toolbar"}
+              tooltip={i18n.t("options.selectionToolbar.title")}
+            >
+              <Icon icon="tabler:highlight" />
+              <span>{i18n.t("options.selectionToolbar.title")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link to="/context-menu" />}
+              isActive={pathname === "/context-menu"}
+              tooltip={i18n.t("options.contextMenu.title")}
+            >
+              <Icon icon="tabler:menu-2" />
+              <span>{i18n.t("options.contextMenu.title")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
