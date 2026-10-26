@@ -14,13 +14,9 @@ type PartialDeep<T> = T extends (infer U)[]
     : T
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
   const proto = Object.getPrototypeOf(value)
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    (proto === Object.prototype || proto === null)
-  )
+  return proto === Object.prototype || proto === null
 }
 
 type ArrayMergeMode = "concat" | "replace"
