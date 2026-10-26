@@ -194,6 +194,18 @@ export function classifyCredentialFailure(error: unknown): CredentialFailure | n
 }
 
 /**
+ * The rotation gate shared by the credential loop (api/ai.ts) and the provider
+ * loop (translation-queues): a failure that says nothing about the candidate —
+ * a timeout, a cancellation, a malformed response — propagates untouched, and
+ * one that does is returned for the caller to park the candidate and move on.
+ */
+export function classifyCredentialFailureOrThrow(error: unknown): CredentialFailure {
+  const failure = classifyCredentialFailure(error)
+  if (!failure) throw error
+  return failure
+}
+
+/**
  * ms until the next request to this provider can go out, counting only the
  * dimensions that are fully cooling — a provider with one live model is usable
  * right now even if every key is parked (the caller pairs credentials, so a

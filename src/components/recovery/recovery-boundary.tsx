@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { ErrorBoundary } from "react-error-boundary"
 import { RecoveryFallback } from "@/components/recovery/recovery-fallback"
+import { toError } from "@/utils/error/message"
 
 interface RecoveryBoundaryProps {
   children: ReactNode
@@ -13,12 +14,7 @@ function renderRecoveryFallback({
   error: unknown
   resetErrorBoundary: () => void
 }) {
-  return (
-    <RecoveryFallback
-      error={error instanceof Error ? error : new Error(String(error))}
-      onRecovered={resetErrorBoundary}
-    />
-  )
+  return <RecoveryFallback error={toError(error)} onRecovered={resetErrorBoundary} />
 }
 
 export function RecoveryBoundary({ children }: RecoveryBoundaryProps) {

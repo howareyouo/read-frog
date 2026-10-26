@@ -4,6 +4,7 @@ import type { SubtitlePromptContext } from "@/types/content"
 import { getLocalConfig } from "@/utils/config/storage"
 import { TRANSLATE_LEAD_MS } from "@/utils/constants/subtitles"
 import { cleanText } from "@/utils/content/utils"
+import { getErrorMessage } from "@/utils/error/message"
 import { Sha256Hex } from "@/utils/hash"
 import { prepareTranslationText } from "@/utils/host/translate/text-preparation"
 import { normalizePromptContextValue } from "@/utils/host/translate/translate-text"
@@ -314,7 +315,7 @@ export async function translateSubtitles(
       firstErrorMessage ??= errorMessage
     } else if (result?.status === "rejected") {
       const reason = result.reason
-      firstErrorMessage ??= reason instanceof Error ? reason.message : String(reason)
+      firstErrorMessage ??= getErrorMessage(reason)
     }
     // This cue failed; the window must not blank its siblings.
     return { ...fragment, translation: "" }

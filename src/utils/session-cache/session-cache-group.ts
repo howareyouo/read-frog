@@ -2,6 +2,7 @@ import { storage } from "#imports"
 import type { ProxyResponse } from "@/types/proxy-fetch"
 import { DEFAULT_PROXY_CACHE_TTL_MS } from "@/utils/constants/proxy-fetch"
 import { logger } from "@/utils/logger"
+import { memoizePromise } from "@/utils/utils"
 
 interface CacheMetadata extends Record<string, unknown> {
   timestamp: number
@@ -13,25 +14,23 @@ type CachedItem = ProxyResponse
 export class SessionCache {
   private prefix: string
   private keysListKey: `session:${string}`
-  private isInitialized = false
+  // Memoized (not a boolean flag) so concurrent calls share one init promise
+  // instead of double-initializing while the first is still in flight.
+  private ensureKeysListInitialized: (() => Promise<void>) & { reset: () => void }
 
   constructor(groupKey: string = "default") {
     this.prefix = `cache_${groupKey}`
     this.keysListKey = `session:${this.prefix}__meta_keys` as const
+    this.ensureKeysListInitialized = memoizePromise(async () => {
+      const existing = await storage.getItem<string[]>(this.keysListKey)
+      if (existing === null) {
+        await storage.setItem(this.keysListKey, [])
+      }
+    })
   }
 
   private makeKey(reqMethod: string, targetUrl: string) {
     return `session:${this.prefix}_${reqMethod.toUpperCase()}_${targetUrl}` as const
-  }
-
-  private async ensureKeysListInitialized(): Promise<void> {
-    if (this.isInitialized) return
-
-    const existing = await storage.getItem<string[]>(this.keysListKey)
-    if (existing === null) {
-      await storage.setItem(this.keysListKey, [])
-    }
-    this.isInitialized = true
   }
 
   async get(
@@ -128,7 +127,7 @@ export class SessionCache {
 
       // Clear the keys list itself
       await storage.removeItem(this.keysListKey)
-      this.isInitialized = false // Reset initialization flag
+      this.ensureKeysListInitialized.reset() // Re-init on next use
 
       logger.info("[SessionCache] Cleared cache:", { count: keysList.length })
     } catch (error) {

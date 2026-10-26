@@ -1,18 +1,7 @@
-import { createFormHook, formOptions } from "@tanstack/react-form"
-import { fieldContext, formContext } from "@/components/form/form-context"
-import { InputFieldAutoSave } from "@/components/form/input-field-auto-save"
-import { SelectFieldAutoSave } from "@/components/form/select-field-auto-save"
+import { formOptions } from "@tanstack/react-form"
 import { apiProviderConfigItemSchema } from "@/types/config/provider"
 
-export const { useAppForm, withForm } = createFormHook({
-  fieldComponents: {
-    InputFieldAutoSave,
-    SelectFieldAutoSave,
-  },
-  formComponents: {},
-  fieldContext,
-  formContext,
-})
+export { useAppForm, withForm } from "@/components/form/config-form-hook"
 
 export const formOpts = formOptions({
   validators: {

@@ -6,12 +6,10 @@ import type { BackgroundStructuredObjectStreamSnapshot } from "@/types/backgroun
 import type { AISDKReasoning } from "@/types/config/provider"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
 import { streamBackgroundStructuredObject } from "@/utils/content-script/background-stream-client"
-import type { CachedWebPageContext } from "@/utils/host/translate/webpage-context-light"
-import { getLightWebPageContext } from "@/utils/host/translate/webpage-context-light"
-import { resolveModelId } from "@/utils/providers/model-id"
-import { getProviderOptionsWithOverride } from "@/utils/providers/options"
+import type { CachedWebPageContext } from "@/utils/host/translate/webpage-context"
+import { getLightWebPageContext } from "@/utils/host/translate/webpage-context"
+import { buildLocalGenerateTextParams } from "@/utils/providers/generate-params"
 import type { CustomActionProviderRef } from "@/utils/providers/provider-registry"
-import { getTopLevelReasoning } from "@/utils/providers/reasoning"
 import { truncateContextTextForCustomAction } from "../../utils"
 import type { SelectionToolbarCustomActionRequestSlice } from "../atoms"
 import {
@@ -225,15 +223,7 @@ function buildCustomActionExecutionRequest({
   const outputSchema = action.outputSchema.map(({ name, type }) => ({ name, type }))
   const providerKey = provider.config.provider
   const model = provider.config.model
-  const modelName = resolveModelId(provider.config.model) ?? ""
-  const reasoning = getTopLevelReasoning(provider.config)
-  const providerOptions = getProviderOptionsWithOverride(
-    modelName,
-    provider.config.provider,
-    provider.config.providerOptions,
-    reasoning,
-  )
-  const temperature = provider.config.temperature
+  const { reasoning, temperature, providerOptions } = buildLocalGenerateTextParams(provider.config)
 
   return {
     key: stringifyExecutionRequestKey({

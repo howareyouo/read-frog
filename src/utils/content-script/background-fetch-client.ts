@@ -1,20 +1,9 @@
 import type { ProxyRequest, ProxyResponse } from "@/types/proxy-fetch"
 import { sendMessage } from "@/utils/message"
+import { describeTarget } from "@/utils/request/http-fetch"
 
 export interface BackgroundFetchOptions
   extends Pick<ProxyRequest, "cacheConfig" | "credentials" | "responseType"> {}
-
-function getRequestUrl(input: RequestInfo | URL) {
-  if (typeof input === "string") {
-    return input
-  }
-
-  if (input instanceof URL) {
-    return input.toString()
-  }
-
-  return input.url
-}
 
 function getRequestHeaders(
   input: RequestInfo | URL,
@@ -79,7 +68,7 @@ function buildProxyRequest(
   options?: BackgroundFetchOptions,
 ): ProxyRequest {
   return {
-    url: getRequestUrl(input),
+    url: describeTarget(input),
     method: getRequestMethod(input, init),
     headers: getRequestHeaders(input, init),
     body: getRequestBody(init),

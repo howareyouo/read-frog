@@ -1,24 +1,24 @@
 import { generateText } from "ai"
-import { storage } from "#imports"
-import type { Config } from "@/types/config/config"
 import type { LLMProviderConfig } from "@/types/config/provider"
 import { getLLMProvidersConfig, getProviderConfigById } from "@/utils/config/helpers"
-import { CONFIG_STORAGE_KEY } from "@/utils/constants/config"
+import { getCachedConfig } from "@/utils/config/storage"
 import { extractAISDKErrorMessage } from "@/utils/error/extract-message"
 import type { TranslatePromptOptions, TranslatePromptResult } from "@/utils/prompts/translate"
 import {
-  classifyCredentialFailure,
+  classifyCredentialFailureOrThrow,
   credentialCooldownRecoveryMs,
   hasAvailableCredential,
   markCredentialCoolingDown,
   pickNextCredential,
   type RotatedCredential,
 } from "@/utils/providers/credential-rotation"
+import { buildLocalGenerateTextParams } from "@/utils/providers/generate-params"
 import { getLanguageModelForConfig } from "@/utils/providers/model"
-import { resolveModelId } from "@/utils/providers/model-id"
-import { getProviderOptionsWithOverride } from "@/utils/providers/options"
-import { getTopLevelReasoning } from "@/utils/providers/reasoning"
-import { attachRequestErrorMeta, getRequestErrorMeta } from "@/utils/request/retry-policy"
+import {
+  attachRequestErrorMeta,
+  getRequestErrorMeta,
+  rateLimitRequestError,
+} from "@/utils/request/retry-policy"
 
 const THINK_TAG_RE = /<\/think>([\s\S]*)/
 
@@ -83,11 +83,10 @@ async function runWithRotatingCredentials<TContext>(
     const credential = pickNextCredential(freshConfig)
     if (!credential) {
       // Every configured credential is parked. Hand the queue a rate-limit
-      // error carrying the first recovery so it waits instead of failing (or,
-      // worse, draining the backlog the way a 401 would).
-      throw attachRequestErrorMeta(
-        new Error("All API keys and models of this provider are cooling down"),
-        { kind: "rate-limit", retryAfterMs: credentialCooldownRecoveryMs(freshConfig) },
+      // error carrying the first recovery so it waits instead of failing.
+      throw rateLimitRequestError(
+        "All API keys and models of this provider are cooling down",
+        credentialCooldownRecoveryMs(freshConfig),
       )
     }
 
@@ -101,11 +100,8 @@ async function runWithRotatingCredentials<TContext>(
         options,
       )
     } catch (error) {
-      const failure = classifyCredentialFailure(error)
-      // A timeout, a malformed batch response or a cancellation says nothing
-      // about the credential — surface it instead of burning the rotation.
-      if (!failure) throw error
-      markCredentialCoolingDown(freshConfig, credential, failure.reason, failure.retryAfterMs)
+      const { reason, retryAfterMs } = classifyCredentialFailureOrThrow(error)
+      markCredentialCoolingDown(freshConfig, credential, reason, retryAfterMs)
       if (!hasAvailableCredential(freshConfig)) throw error
     }
   }
@@ -115,7 +111,7 @@ async function getFreshProviderConfig(
   providerConfig: LLMProviderConfig,
 ): Promise<LLMProviderConfig> {
   try {
-    const config = await storage.getItem<Config>(`local:${CONFIG_STORAGE_KEY}`)
+    const config = await getCachedConfig()
     const fresh = config
       ? getProviderConfigById(getLLMProvidersConfig(config.providersConfig), providerConfig.id)
       : undefined
@@ -133,19 +129,14 @@ async function runCredentialAttempt<TContext>(
   promptResolver: PromptResolver<TContext>,
   options?: AITranslateOptions<TContext>,
 ) {
-  const { provider, providerOptions: userProviderOptions, temperature } = providerConfig
-  const reasoning = getTopLevelReasoning(providerConfig)
   // The provider options recommendation match must follow the model actually
   // serving this request, not the primary selection.
-  const modelName = credential?.modelId ?? resolveModelId(providerConfig.model)
+  const { reasoning, temperature, providerOptions } = buildLocalGenerateTextParams(
+    providerConfig,
+    credential?.modelId,
+  )
   const model = await getLanguageModelForConfig(providerConfig, credential)
 
-  const providerOptions = getProviderOptionsWithOverride(
-    modelName ?? "",
-    provider,
-    userProviderOptions,
-    reasoning,
-  )
   const { systemPrompt, prompt } = await promptResolver(targetLangName, text, options)
 
   try {

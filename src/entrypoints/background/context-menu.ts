@@ -1,7 +1,7 @@
 import type { Browser } from "#imports"
 import { browser, storage } from "#imports"
 import type { Config } from "@/types/config/config"
-import { CONFIG_STORAGE_KEY } from "@/utils/constants/config"
+import { CONFIG_STORAGE_ITEM } from "@/utils/config/storage"
 import {
   getTranslationStateKey,
   parseTabIdFromStorageKey,
@@ -28,7 +28,7 @@ function getSelectionCustomActionMenuId(actionId: string) {
  */
 export function registerContextMenuListeners() {
   // Listen for config changes to update context menu
-  storage.watch<Config>(`local:${CONFIG_STORAGE_KEY}`, async (newConfig) => {
+  storage.watch<Config>(CONFIG_STORAGE_ITEM, async (newConfig) => {
     if (newConfig) {
       await updateContextMenuItems(newConfig)
     }

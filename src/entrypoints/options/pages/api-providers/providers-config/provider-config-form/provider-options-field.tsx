@@ -7,25 +7,9 @@ import { i18n } from "@/utils/i18n"
 import { resolveModelId } from "@/utils/providers/model-id"
 import { getRecommendedProviderOptions } from "@/utils/providers/options"
 import { AutosavedJsonCodeEditorField } from "./components/autosaved-json-code-editor-field"
+import { parseJsonObject, stringifyJsonField } from "./components/json-field-parsing"
 import { ProviderOptionsRecommendationTrigger } from "./components/provider-options-recommendation-trigger"
 import { withForm } from "./form"
-
-function parseJson(
-  input: string,
-): { valid: true; value: Record<string, unknown> | undefined } | { valid: false; error: string } {
-  if (!input.trim()) {
-    return { valid: true, value: undefined }
-  }
-  try {
-    return { valid: true, value: JSON.parse(input) }
-  } catch {
-    return { valid: false, error: i18n.t("options.apiProviders.form.invalidJson") }
-  }
-}
-
-function toJson(options: APIProviderConfig["providerOptions"]) {
-  return options ? JSON.stringify(options, null, 2) : ""
-}
 
 export const ProviderOptionsField = withForm({
   ...{ defaultValues: {} as APIProviderConfig },
@@ -63,8 +47,8 @@ export const ProviderOptionsField = withForm({
         value={providerConfig.providerOptions}
         resetKey={providerConfig.id}
         syncSignal={providerConfig.providerOptions}
-        parse={parseJson}
-        serialize={toJson}
+        parse={parseJsonObject}
+        serialize={stringifyJsonField}
         onCommit={handleProviderOptionsCommit}
         onSubmit={handleSubmit}
         editorAriaLabel="provider-options-editor"

@@ -1,6 +1,7 @@
 import type { LangCodeISO6391 } from "@read-frog/definitions"
 import type { ProviderConfig } from "@/types/config/provider"
 import type { TranslationTextFormat } from "@/types/config/translate"
+import { wrapParseError } from "@/utils/error/message"
 import { httpFetch } from "@/utils/request/http-fetch"
 
 type DeepLProviderConfig = Extract<ProviderConfig, { provider: "deepl" }>
@@ -103,8 +104,7 @@ async function parseDeepLResponse(resp: Response, expectedCount: number): Promis
       return translation.text
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to parse DeepL translation response: ${message}`, { cause: error })
+    throw wrapParseError("Failed to parse DeepL translation response", error)
   }
 }
 

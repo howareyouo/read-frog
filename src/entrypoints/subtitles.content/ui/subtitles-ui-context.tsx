@@ -1,8 +1,9 @@
 import { Provider as JotaiProvider } from "jotai"
-import { createContext, useContext, useMemo } from "react"
+import { useMemo } from "react"
 import { TooltipProvider } from "@/components/ui/base-ui/tooltip"
 import type { ControlsConfig } from "@/entrypoints/subtitles.content/platforms"
 import type { SubtitlesProvidersAdapter } from "@/entrypoints/subtitles.content/universal-adapter"
+import { createContextWithHook } from "@/utils/react/context"
 import { subtitlesStore } from "../atoms"
 
 interface SubtitlesUIContextValue {
@@ -15,14 +16,13 @@ interface SubtitlesUIContextValue {
   containerShrinkRatio?: (container: HTMLElement) => number | null
 }
 
-export const SubtitlesUIContext = createContext<SubtitlesUIContextValue | null>(null)
+export const { Context: SubtitlesUIContext, useRequiredContext } =
+  createContextWithHook<SubtitlesUIContextValue>(
+    "useSubtitlesUI must be used within SubtitlesUIContext",
+  )
 
 export function useSubtitlesUI() {
-  const ui = useContext(SubtitlesUIContext)
-  if (!ui) {
-    throw new Error("useSubtitlesUI must be used within SubtitlesUIContext")
-  }
-  return ui
+  return useRequiredContext()
 }
 
 export function SubtitlesProviders({

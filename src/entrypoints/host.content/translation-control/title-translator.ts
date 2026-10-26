@@ -113,6 +113,11 @@ export class TitleTranslator {
     void this.syncDocumentTitle(currentTitle)
   }
 
+  /** Whether this request is still the latest title request of a live session. */
+  private isCurrentTitleRequest(requestVersion: number): boolean {
+    return this.isActive() && requestVersion === this.titleRequestVersion
+  }
+
   private async syncDocumentTitle(sourceTitle: string): Promise<void> {
     if (!sourceTitle.trim() || !this.isActive() || !this.shouldManageDocumentTitle()) {
       return
@@ -122,7 +127,7 @@ export class TitleTranslator {
 
     try {
       const translatedTitle = await translateTextForPageTitle(sourceTitle)
-      if (!this.isActive() || requestVersion !== this.titleRequestVersion) {
+      if (!this.isCurrentTitleRequest(requestVersion)) {
         return
       }
 
@@ -137,7 +142,7 @@ export class TitleTranslator {
     } catch (error) {
       // A cancelled session's title request rejecting is expected, not noise.
       if (isTranslationCancelledError(error)) return
-      if (requestVersion === this.titleRequestVersion) {
+      if (this.isCurrentTitleRequest(requestVersion)) {
         logger.warn("Failed to translate document title:", error)
       }
     }

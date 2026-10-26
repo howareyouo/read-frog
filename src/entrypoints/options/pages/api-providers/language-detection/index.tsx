@@ -1,12 +1,12 @@
 import { useAtom, useAtomValue } from "jotai"
-import { useContext, useMemo } from "react"
+import { useMemo } from "react"
 import ProviderSelector from "@/components/llm-providers/provider-selector"
+import { useSelectableProviders } from "@/components/llm-providers/use-feature-providers"
 import { Label } from "@/components/ui/base-ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/base-ui/radio-group"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { resolveLanguageDetectionConfigForModeChange } from "@/utils/config/helpers"
 import { i18n } from "@/utils/i18n"
-import { getSelectableProvidersForCapability } from "@/utils/providers/provider-registry"
 import { ConfigItem } from "../../../components/config-item"
 import { ConfigSection } from "../../../components/config-section"
 import { SELECT_CONTENT_PROPS } from "../../../components/select-content-props"
@@ -16,10 +16,7 @@ export function LanguageDetectionConfig() {
   const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
 
   // Capability-based: only enabled providers that can run detection.
-  const selectableProviders = useMemo(
-    () => getSelectableProvidersForCapability("languageDetection", providersConfig),
-    [providersConfig],
-  )
+  const selectableProviders = useSelectableProviders("languageDetection")
 
   const hasProviders = selectableProviders.length > 0
   const isLLMMode = languageDetection.mode === "llm"

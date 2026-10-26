@@ -1,7 +1,8 @@
 import { useAtom } from "jotai"
-import { createContext, useContext, useLayoutEffect, useMemo, useSyncExternalStore } from "react"
+import { useLayoutEffect, useMemo, useSyncExternalStore } from "react"
 import type { Theme, ThemeMode } from "@/types/config/theme"
 import { themeModeAtom } from "@/utils/atoms/theme"
+import { createContextWithHook } from "@/utils/react/context"
 import { applyTheme } from "@/utils/theme"
 
 interface ThemeContextI {
@@ -10,7 +11,8 @@ interface ThemeContextI {
   setThemeMode: (mode: ThemeMode) => void
 }
 
-export const ThemeContext = createContext<ThemeContextI | undefined>(undefined)
+export const { Context: ThemeContext, useRequiredContext: useTheme } =
+  createContextWithHook<ThemeContextI>("useTheme must be used within a ThemeProvider")
 
 export function ThemeProvider({
   children,
@@ -51,12 +53,4 @@ export function ThemeProvider({
   )
 
   return <ThemeContext value={contextValue}>{children}</ThemeContext>
-}
-
-export function useTheme(): ThemeContextI {
-  const context = useContext(ThemeContext)
-  if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider")
-  }
-  return context
 }

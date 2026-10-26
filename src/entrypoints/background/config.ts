@@ -1,18 +1,20 @@
-import { storage } from "#imports"
-import type { Config } from "@/types/config/config"
-import type { InitializeConfigResult } from "@/utils/config/init"
 import { initializeConfig } from "@/utils/config/init"
-import { CONFIG_STORAGE_KEY } from "@/utils/constants/config"
+import { getCachedConfig } from "@/utils/config/storage"
+import { memoizePromise } from "@/utils/utils"
 
-let configPromise: Promise<InitializeConfigResult> | null = null
+// To avoid the background script initializing config simultaneously and hitting
+// a race condition, initialize at most once.
+const initializeConfigOnce = memoizePromise(initializeConfig)
 
-// To avoid background script initialize config simultaneously and avoid race condition
+/**
+ * Config after initialization, via the same validated read every other context
+ * uses (`getCachedConfig`): missing → null, schema-invalid → DEFAULT_CONFIG.
+ * Background consumers must not bypass validation — a raw read would hand
+ * business logic a value that only claims to be a `Config`.
+ */
 export async function ensureInitializedConfig() {
-  if (!configPromise) {
-    configPromise = initializeConfig()
-  }
-  await configPromise
-  return storage.getItem<Config>(`local:${CONFIG_STORAGE_KEY}`)
+  await initializeConfigOnce()
+  return getCachedConfig()
 }
 
 /**
@@ -20,8 +22,5 @@ export async function ensureInitializedConfig() {
  * Shares the memoized initialization above, so it never triggers a second init.
  */
 export async function isFreshInstalledConfig() {
-  if (!configPromise) {
-    configPromise = initializeConfig()
-  }
-  return (await configPromise).isFreshInstall
+  return (await initializeConfigOnce()).isFreshInstall
 }

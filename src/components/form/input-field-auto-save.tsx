@@ -1,6 +1,7 @@
 import { useSelector } from "@tanstack/react-store"
 import { Field, FieldError, FieldLabel } from "@/components/ui/base-ui/field"
 import { Input } from "@/components/ui/base-ui/input"
+import { formatFieldErrors } from "./field-error-text"
 import { useFieldContext } from "./form-context"
 import { useDebouncedSubmit } from "./use-debounced-submit"
 
@@ -65,9 +66,7 @@ export function InputFieldAutoSave({
         aria-invalid={hasError}
         {...props}
       />
-      <FieldError>
-        {errors.map((error) => (typeof error === "string" ? error : error?.message)).join(", ")}
-      </FieldError>
+      <FieldError>{formatFieldErrors(errors)}</FieldError>
     </Field>
   )
 }

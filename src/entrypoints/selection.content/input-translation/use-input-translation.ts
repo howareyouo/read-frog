@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai"
 import { useCallback, useEffect, useRef } from "react"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { translateTextForInput } from "@/utils/host/translate/translate-input"
+import { cancelSpinnerAnimation, createBorderSpinner } from "@/utils/host/translate/ui/spinner"
 
 const SPACE_KEY = " "
 const TRIGGER_COUNT = 3
@@ -25,52 +26,28 @@ function setLastCycleSwapped(swapped: boolean): void {
 }
 
 /**
- * Create and show a loading spinner near the input element
- * Uses the same style as page translation loading (border spinner with primary color)
+ * Create and show a loading spinner near the input element.
+ * Reuses the shared border-spinner core from translate/ui/spinner.ts with the
+ * page-translation look scaled up: brand-yellow rotating segment.
  */
 function showSpinner(element: HTMLElement): () => void {
   // Remove any existing spinner
-  const existingSpinner = document.getElementById(SPINNER_ID)
-  if (existingSpinner) {
-    existingSpinner.remove()
-  }
+  document.getElementById(SPINNER_ID)?.remove()
 
-  // Create spinner element - same style as createLightweightSpinner in translate/ui/spinner.ts
-  const spinner = document.createElement("span")
+  const spinner = createBorderSpinner(document, {
+    size: 10,
+    borderWidth: 3,
+    trackColor: "#e5e5e5",
+    // Brand yellow; set as a var because the host page has no theme variables.
+    spinColor: "var(--rf-brand)",
+    extraCss: `
+      --rf-brand: oklch(76.034% 0.12361 82.191);
+      position: absolute !important;
+      z-index: 999999 !important;
+      pointer-events: none !important;
+    `,
+  })
   spinner.id = SPINNER_ID
-
-  // Use the same border spinner style as page translation
-  // Colors: brand yellow (oklch(76.034% 0.12361 82.191)) and muted gray
-  spinner.style.cssText = `
-    --rf-brand: oklch(76.034% 0.12361 82.191);
-    position: absolute !important;
-    display: inline-block !important;
-    width: 10px !important;
-    height: 10px !important;
-    border: 3px solid #e5e5e5 !important;
-    border-top: 3px solid var(--rf-brand) !important;
-    border-radius: 50% !important;
-    box-sizing: content-box !important;
-    z-index: 999999 !important;
-    pointer-events: none !important;
-  `
-
-  // Respect user's motion preferences for accessibility
-  const prefersReducedMotion =
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false
-
-  if (!prefersReducedMotion) {
-    // Use Web Animations API for rotation
-    spinner.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], {
-      duration: 600,
-      iterations: Infinity,
-      easing: "linear",
-    })
-  } else {
-    // For reduced motion, keep the spinner static but preserve the brand
-    // segment so the loading state remains visible without animation.
-    spinner.style.borderTopColor = "var(--rf-brand)"
-  }
 
   // Calculate position - vertically centered relative to the element
   const rect = element.getBoundingClientRect()
@@ -89,6 +66,7 @@ function showSpinner(element: HTMLElement): () => void {
 
   // Return cleanup function
   return () => {
+    cancelSpinnerAnimation(spinner)
     spinner.remove()
   }
 }

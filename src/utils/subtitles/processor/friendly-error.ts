@@ -1,4 +1,5 @@
 import { APICallError } from "ai"
+import { getErrorMessage } from "@/utils/error/message"
 import { i18n } from "@/utils/i18n"
 
 /**
@@ -26,7 +27,7 @@ export function toFriendlyTranslationErrorMessage(error: unknown): string {
     }
   }
 
-  const message = error instanceof Error ? error.message : String(error)
+  const message = getErrorMessage(error)
 
   if (message.includes("No Response") || message.includes("Empty response")) {
     return i18n.t("subtitles.errors.aiNoResponse")

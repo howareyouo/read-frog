@@ -11,7 +11,9 @@ import {
   SELECTION_CONTENT_OVERLAY_ROOT_ATTRIBUTE,
 } from "@/entrypoints/selection.content/overlay-layers"
 import { NOTRANSLATE_CLASS } from "@/utils/constants/dom-labels"
+import { createContextWithHook } from "@/utils/react/context"
 import { cn } from "@/utils/styles/utils"
+import { clamp } from "@/utils/utils"
 import { usePreventScrollThrough } from "./use-prevent-scroll-through"
 import {
   SELECTION_POPOVER_DRAG_HANDLE_CLASS,
@@ -54,30 +56,17 @@ interface SelectionPopoverContentContextValue {
   setBodyElement: (node: HTMLDivElement | null) => void
 }
 
-const SelectionPopoverRootContext = React.createContext<SelectionPopoverRootContextValue | null>(
-  null,
+const { Context: SelectionPopoverRootContext, useRequiredContext: useSelectionPopoverRootContext } =
+  createContextWithHook<SelectionPopoverRootContextValue>(
+    "SelectionPopover components must be used within SelectionPopover.Root.",
+  )
+const {
+  Context: SelectionPopoverContentContext,
+  useRequiredContext: useSelectionPopoverContentContext,
+} = createContextWithHook<SelectionPopoverContentContextValue>(
+  "SelectionPopover content slots must be used within SelectionPopover.Content.",
 )
-const SelectionPopoverContentContext =
-  React.createContext<SelectionPopoverContentContextValue | null>(null)
 const SELECTION_POPOVER_OPEN_EVENT = "read-frog:selection-popover-open"
-
-function useSelectionPopoverRootContext() {
-  const context = React.use(SelectionPopoverRootContext)
-  if (!context) {
-    throw new Error("SelectionPopover components must be used within SelectionPopover.Root.")
-  }
-
-  return context
-}
-
-function useSelectionPopoverContentContext() {
-  const context = React.use(SelectionPopoverContentContext)
-  if (!context) {
-    throw new Error("SelectionPopover content slots must be used within SelectionPopover.Content.")
-  }
-
-  return context
-}
 
 export function useSelectionPopoverOverlayProps() {
   const context = React.use(SelectionPopoverContentContext)
@@ -334,10 +323,6 @@ const SELECTION_POPOVER_RESIZE_CURSORS: Record<SelectionPopoverResizeDirection, 
   bottomLeft: "nesw-resize",
   topLeft: "nwse-resize",
   bottomRight: "nwse-resize",
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
 }
 
 type SelectionPopoverShellProps = Omit<

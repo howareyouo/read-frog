@@ -17,6 +17,7 @@ import {
   WAIT_TIMEDTEXT_RESPONSE_TYPE,
 } from "@/utils/constants/subtitles"
 import { getRandomUUID } from "@/utils/crypto-polyfill"
+import { toError } from "@/utils/error/message"
 import { i18n } from "@/utils/i18n"
 import { OverlaySubtitlesError } from "@/utils/subtitles/errors"
 import { getYoutubeVideoId } from "@/utils/subtitles/video-id"
@@ -498,7 +499,7 @@ export class YoutubeSubtitlesFetcher implements SubtitlesFetcher {
         if (e instanceof OverlaySubtitlesError) {
           throw e
         }
-        lastError = e instanceof Error ? e : new Error(String(e))
+        lastError = toError(e)
         if (i < MAX_FETCH_RETRIES - 1) {
           await sleep(FETCH_RETRY_DELAY_MS)
         }

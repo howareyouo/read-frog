@@ -2,6 +2,7 @@ import type { LangCodeISO6391 } from "@read-frog/definitions"
 import type { ProviderConfig } from "@/types/config/provider"
 import type { TranslationTextFormat } from "@/types/config/translate"
 import { DEFAULT_PROVIDER_CONFIG } from "@/utils/constants/providers"
+import { wrapParseError } from "@/utils/error/message"
 import { httpFetch } from "@/utils/request/http-fetch"
 
 type DeepLXProviderConfig = Extract<ProviderConfig, { provider: "deeplx" }>
@@ -69,8 +70,7 @@ async function parseDeepLXResponse(resp: {
     }
     return result.data
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to parse DeepLX translation response: ${message}`, { cause: error })
+    throw wrapParseError("Failed to parse DeepLX translation response", error)
   }
 }
 

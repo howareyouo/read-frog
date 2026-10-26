@@ -3,7 +3,11 @@ import type { PlatformConfig } from "@/entrypoints/subtitles.content/platforms"
 import { READ_FROG_SUBTITLES_UI_HOST_ID, SUBTITLES_THEME } from "@/utils/constants/subtitles"
 import { waitForElement } from "@/utils/dom/wait-for-element"
 import { LocaleBoundary } from "@/utils/i18n/locale-boundary"
-import { ShadowWrapperContext } from "@/utils/react-shadow-host/create-shadow-host"
+import {
+  getShadowHostCleanup,
+  ShadowWrapperContext,
+  stashShadowHostCleanup,
+} from "@/utils/react-shadow-host/create-shadow-host"
 import { mountReactShadowUi } from "@/utils/react-shadow-host/mount-react-shadow-ui"
 import { SubtitlesContainer } from "../ui/subtitles-container"
 import { SubtitlesProviders } from "../ui/subtitles-ui-context"
@@ -38,7 +42,7 @@ export async function mountSubtitlesUI({
       return
     }
 
-    ;(existingHost as any).__reactShadowContainerCleanup?.()
+    getShadowHostCleanup(existingHost)?.()
     existingHost.remove()
   }
 
@@ -82,8 +86,8 @@ export async function mountSubtitlesUI({
   })
 
   const cleanupToast = mountSubtitlesToast()
-  ;(shadowHost as any).__reactShadowContainerCleanup = () => {
+  stashShadowHostCleanup(shadowHost, () => {
     cleanupToast()
     cleanupUi()
-  }
+  })
 }

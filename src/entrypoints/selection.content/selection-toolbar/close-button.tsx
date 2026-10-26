@@ -10,11 +10,12 @@ import {
 import { SELECTION_CONTENT_OVERLAY_LAYERS } from "@/entrypoints/selection.content/overlay-layers"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { i18n } from "@/utils/i18n"
-import { shadowWrapper } from "../bootstrap"
+import { ShadowWrapperContext } from "@/utils/react-shadow-host/create-shadow-host"
 
 export const DropEvent = "rf-dropdown-change"
 
 export function CloseButton() {
+  const shadowWrapper = useContext(ShadowWrapperContext)
   const [selectionToolbar, setSelectionToolbar] = useAtom(configFieldsAtomMap.selectionToolbar)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 

@@ -9,7 +9,7 @@ import {
   serializeProviderRef,
   type UnwrappedProviderRef,
 } from "@/utils/providers/provider-ref"
-import { getCachedConfig } from "../../config/storage"
+import { getConfigOrThrow } from "../../config/get-config-or-throw"
 import { shouldSkipAsTargetLanguage } from "./target-language-skip"
 import { prepareTranslationText } from "./text-preparation"
 import {
@@ -20,14 +20,6 @@ import {
 import { getPageTranslationSessionId } from "./translation-session"
 import { getOrCreateWebPageContext } from "./webpage-context"
 import { getOrGenerateWebPageSummary } from "./webpage-summary"
-
-async function getConfigOrThrow(): Promise<Config> {
-  const config = await getCachedConfig()
-  if (!config) {
-    throw new Error("No global config when translate text")
-  }
-  return config
-}
 
 async function getWebPagePromptContext(
   providerConfig: UnwrappedProviderRef,

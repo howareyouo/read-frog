@@ -1,3 +1,4 @@
+import { clamp } from "@/utils/utils"
 import type { SelectionRangeSnapshot } from "../utils"
 import { toLiveRange } from "../utils"
 
@@ -55,10 +56,6 @@ interface ViewportHost {
 
 const DOWNWARD_TOLERANCE = 8
 const CURSOR_CLEARANCE = 20
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value))
-}
 
 function hasArea(rect: DOMRect) {
   return rect.width > 0 || rect.height > 0

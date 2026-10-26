@@ -4,38 +4,29 @@ import { HelpTooltip } from "@/components/help-tooltip"
 import type { APIProviderConfig } from "@/types/config/provider"
 import { isLLMProviderConfig } from "@/types/config/provider"
 import { i18n } from "@/utils/i18n"
-import { AutosavedJsonCodeEditorField } from "./components/autosaved-json-code-editor-field"
+import {
+  AutosavedJsonCodeEditorField,
+  type JsonEditorParseResult,
+} from "./components/autosaved-json-code-editor-field"
+import { parseJsonObject, stringifyJsonField } from "./components/json-field-parsing"
 import { withForm } from "./form"
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function parseHeadersJson(
-  input: string,
-): { valid: true; value: Record<string, unknown> | undefined } | { valid: false; error: string } {
-  if (!input.trim()) {
-    return { valid: true, value: undefined }
+function parseHeadersJson(input: string): JsonEditorParseResult<Record<string, unknown>> {
+  const base = parseJsonObject(input)
+  if (!base.valid || base.value === undefined) {
+    return base
   }
-
-  try {
-    const parsed = JSON.parse(input)
-    if (!isPlainObject(parsed)) {
-      return { valid: false, error: i18n.t("options.apiProviders.form.invalidJson") }
-    }
-
-    if (Object.values(parsed).some((value) => typeof value !== "string")) {
-      return { valid: false, error: i18n.t("options.apiProviders.form.invalidJson") }
-    }
-
-    return { valid: true, value: parsed }
-  } catch {
+  if (
+    !isPlainObject(base.value) ||
+    Object.values(base.value).some((value) => typeof value !== "string")
+  ) {
     return { valid: false, error: i18n.t("options.apiProviders.form.invalidJson") }
   }
-}
-
-function toJson(headers: APIProviderConfig["headers"]) {
-  return headers ? JSON.stringify(headers, null, 2) : ""
+  return base
 }
 
 const EXAMPLE_HEADERS_PLACEHOLDER = {
@@ -73,7 +64,7 @@ export const ProviderHeadersField = withForm({
         resetKey={providerConfig.id}
         syncSignal={providerConfig.headers}
         parse={parseHeadersJson}
-        serialize={toJson}
+        serialize={stringifyJsonField}
         onCommit={handleHeadersCommit}
         onSubmit={handleSubmit}
         editorAriaLabel="provider-headers-editor"

@@ -4,7 +4,6 @@ import { HotkeyManager } from "@tanstack/hotkeys"
 import { useAtomValue, useSetAtom } from "jotai"
 import type { ReactNode } from "react"
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -13,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react"
+import { useSelectableProviders } from "@/components/llm-providers/use-feature-providers"
 import { toastManager } from "@/components/ui/base-ui/toast"
 import { SelectionPopover } from "@/components/ui/selection-popover"
 import type { BackgroundTextStreamSnapshot } from "@/types/background-stream"
@@ -23,7 +23,7 @@ import { buildFeatureProviderSelectionPatch } from "@/utils/constants/feature-pr
 import { streamBackgroundText } from "@/utils/content-script/background-stream-client"
 import { prepareTranslationText } from "@/utils/host/translate/text-preparation"
 import { translateTextCore } from "@/utils/host/translate/translate-text"
-import { getLightWebPageContext } from "@/utils/host/translate/webpage-context-light"
+import { getLightWebPageContext } from "@/utils/host/translate/webpage-context"
 import { getOrGenerateWebPageSummary } from "@/utils/host/translate/webpage-summary"
 import { onMessage } from "@/utils/message"
 import {
@@ -32,12 +32,10 @@ import {
 } from "@/utils/page-translation-shortcut"
 import { getTranslatePromptFromConfig } from "@/utils/prompts/translate"
 import { nextFeatureProviderIndex } from "@/utils/providers/feature-provider-resolver"
-import { resolveModelId } from "@/utils/providers/model-id"
-import { getProviderOptionsWithOverride } from "@/utils/providers/options"
+import { buildLocalGenerateTextParams } from "@/utils/providers/generate-params"
 import type { SerializableProviderRef } from "@/utils/providers/provider-ref"
-import { getSelectableProvidersForCapability } from "@/utils/providers/provider-registry"
-import { getTopLevelReasoning } from "@/utils/providers/reasoning"
-import { shadowWrapper } from "../../bootstrap"
+import { createContextWithHook } from "@/utils/react/context"
+import { ShadowWrapperContext } from "@/utils/react-shadow-host/create-shadow-host"
 import { SelectionToolbarErrorAlert } from "../../components/selection-toolbar-error-alert"
 import { SelectionToolbarFooterContent } from "../../components/selection-toolbar-footer-content"
 import { SelectionToolbarTitleContent } from "../../components/selection-toolbar-title-content"
@@ -96,15 +94,7 @@ async function translateWithTextStream({
   registerAbortController: (abortController: AbortController) => void
 }) {
   const targetLangName = LANG_CODE_TO_EN_NAME[translateRequest.language.targetCode]
-  const modelName = resolveModelId(providerConfig.model)
-  const reasoning = getTopLevelReasoning(providerConfig)
-  const providerOptions = getProviderOptionsWithOverride(
-    modelName ?? "",
-    providerConfig.provider,
-    providerConfig.providerOptions,
-    reasoning,
-  )
-  const temperature = providerConfig.temperature
+  const { reasoning, temperature, providerOptions } = buildLocalGenerateTextParams(providerConfig)
   const abortController = new AbortController()
   registerAbortController(abortController)
 
@@ -188,18 +178,10 @@ interface SelectionTranslationContextValue {
   prepareToolbarOpen: () => void
 }
 
-const SelectionTranslationContext = createContext<SelectionTranslationContextValue | null>(null)
-
-function useSelectionTranslationContext() {
-  const context = useContext(SelectionTranslationContext)
-  if (!context) {
-    throw new Error(
-      "Selection translation popover must be used within SelectionTranslationProvider.",
-    )
-  }
-
-  return context
-}
+const { Context: SelectionTranslationContext, useRequiredContext: useSelectionTranslationContext } =
+  createContextWithHook<SelectionTranslationContextValue>(
+    "Selection translation popover must be used within SelectionTranslationProvider.",
+  )
 
 export function useSelectionTranslationPopover() {
   return useSelectionTranslationContext()
@@ -209,7 +191,6 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
   const [translatedText, setTranslatedText] = useState<string | undefined>(undefined)
   const { error, isRunning: isTranslating, task, thinking } = useStreamingLlmTask()
   const translateRequest = useAtomValue(selectionToolbarTranslateRequestAtom)
-  const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
   const selectionToolbar = useAtomValue(configFieldsAtomMap.selectionToolbar)
   const setConfig = useSetAtom(writeConfigAtom)
   const lastTranslationRunKeyRef = useRef<string | null>(null)
@@ -248,10 +229,7 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
   const selectionText = activeSession?.selectionSnapshot.text ?? null
   const paragraphsText = activeSession?.contextSnapshot.text ?? selectionText
   const titleText = document.title || null
-  const translateProviders = useMemo(
-    () => getSelectableProvidersForCapability("selectionTranslation", providersConfig),
-    [providersConfig],
-  )
+  const translateProviders = useSelectableProviders("selectionTranslation")
   const translateRequestKey = useMemo(() => JSON.stringify(translateRequest), [translateRequest])
 
   const handleProviderChange = useCallback(
@@ -477,6 +455,8 @@ export function SelectionTranslationProvider({ children }: { children: ReactNode
     }),
     [prepareToolbarOpen],
   )
+
+  const shadowWrapper = useContext(ShadowWrapperContext)
 
   return (
     <SelectionTranslationContext value={contextValue}>

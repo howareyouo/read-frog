@@ -5,6 +5,7 @@ import {
   MAX_USER_SITE_RULES,
   siteRuleSchema,
 } from "@/types/config/site-rules"
+import { getErrorMessage } from "@/utils/error/message"
 
 export interface UserRulesIssue {
   path: string
@@ -114,7 +115,7 @@ export function validateUserRulesDocument(text: string): UserRulesValidationResu
     return {
       ok: false,
       kind: "syntax",
-      issues: [{ path: "rules", message: error instanceof Error ? error.message : String(error) }],
+      issues: [{ path: "rules", message: getErrorMessage(error) }],
     }
   }
 

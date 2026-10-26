@@ -10,7 +10,6 @@
  * schema spells "off" as `null`, the translation one keeps `""`).
  */
 import { useMemo } from "react"
-import { Button } from "@/components/ui/base-ui/button"
 import { Field } from "@/components/ui/base-ui/field"
 import { CSSCodeEditor } from "@/components/ui/css-code-editor"
 import { env } from "@/env"
@@ -19,7 +18,7 @@ import { MAX_CUSTOM_CSS_LENGTH } from "@/types/config/translate"
 import { lintCSS } from "@/utils/css/lint-css"
 import type { I18nKey } from "@/utils/i18n"
 import { i18n } from "@/utils/i18n"
-import { cn } from "@/utils/styles/utils"
+import { DraftEditorFooter } from "./draft-editor-footer"
 
 /**
  * Literal i18n keys per page prefix. Built as a table (rather than template-string
@@ -119,15 +118,9 @@ export function CustomCssEditor({
         placeholder={editorKey(i18nPrefix, "placeholder")}
         className="max-h-[400px] min-h-[200px] overflow-y-auto"
       />
-      <div className="flex items-center justify-between gap-2">
-        <div
-          className={cn(
-            "text-sm text-green-500",
-            isValidating && "text-muted-foreground",
-            (hasSyntaxError || hasLengthError) && "text-destructive",
-          )}
-        >
-          {value.trim().length > 0
+      <DraftEditorFooter
+        message={
+          value.trim().length > 0
             ? getValidationMessage(
                 i18nPrefix,
                 isValidating,
@@ -135,21 +128,21 @@ export function CustomCssEditor({
                 hasLengthError,
                 hasChanges,
               )
-            : ""}
-        </div>
-        <Button
-          onClick={() => {
-            // Must pass syntax check and length check
-            if (hasSyntaxError || hasLengthError || isValidating || !hasChanges) {
-              return
-            }
-            onSave()
-          }}
-          disabled={isValidating || hasSyntaxError || hasLengthError || !hasChanges}
-        >
-          {hasChanges ? editorKey(i18nPrefix, "saveButton") : editorKey(i18nPrefix, "savedButton")}
-        </Button>
-      </div>
+            : ""
+        }
+        isValidating={isValidating}
+        hasError={hasSyntaxError || hasLengthError}
+        hasChanges={hasChanges}
+        onSave={() => {
+          // Must pass syntax check and length check
+          if (hasSyntaxError || hasLengthError || isValidating || !hasChanges) {
+            return
+          }
+          onSave()
+        }}
+        saveButtonLabel={editorKey(i18nPrefix, "saveButton")}
+        savedButtonLabel={editorKey(i18nPrefix, "savedButton")}
+      />
     </Field>
   )
 }

@@ -7,11 +7,11 @@ import { initI18n } from "@/utils/i18n"
 import {
   buildFreshDefaultConfig,
   CONFIG_SCHEMA_VERSION,
-  CONFIG_STORAGE_KEY,
   CORRUPT_CONFIG_BACKUP_KEY,
   DEFAULT_CONFIG,
 } from "../constants/config"
 import { logger } from "../logger"
+import { CONFIG_STORAGE_ITEM } from "./storage"
 
 export interface InitializeConfigResult {
   /**
@@ -28,8 +28,8 @@ export interface InitializeConfigResult {
  */
 export async function initializeConfig(): Promise<InitializeConfigResult> {
   const [storedConfig, configMeta] = await Promise.all([
-    storage.getItem<Config>(`local:${CONFIG_STORAGE_KEY}`),
-    storage.getMeta<ConfigMeta>(`local:${CONFIG_STORAGE_KEY}`),
+    storage.getItem<Config>(CONFIG_STORAGE_ITEM),
+    storage.getMeta<ConfigMeta>(CONFIG_STORAGE_ITEM),
   ])
 
   let config: Config
@@ -84,11 +84,11 @@ export async function initializeConfig(): Promise<InitializeConfigResult> {
     configMeta?.schemaVersion !== CONFIG_SCHEMA_VERSION || configMeta?.lastModifiedAt === undefined
 
   if (didConfigChange) {
-    await storage.setItem<Config>(`local:${CONFIG_STORAGE_KEY}`, config)
+    await storage.setItem<Config>(CONFIG_STORAGE_ITEM, config)
   }
 
   if (didConfigChange || didMetaNeedUpdate) {
-    await storage.setMeta<ConfigMeta>(`local:${CONFIG_STORAGE_KEY}`, {
+    await storage.setMeta<ConfigMeta>(CONFIG_STORAGE_ITEM, {
       schemaVersion: CONFIG_SCHEMA_VERSION,
       lastModifiedAt: configMeta?.lastModifiedAt ?? Date.now(),
     })

@@ -16,6 +16,7 @@ import {
   MARGIN,
 } from "@/utils/constants/selection"
 import { getSelectionToolbarActions } from "@/utils/custom-actions"
+import { useViewportChangeEvents } from "@/utils/react/viewport-events"
 import { cn } from "@/utils/styles/utils"
 import { matchDomainPattern } from "@/utils/url"
 import {
@@ -276,58 +277,14 @@ export function SelectionToolbar() {
     updatePosition({ remeasureSelection: true })
   }, [updatePosition, externalSelectionTick])
 
-  useEffect(() => {
-    if (!isSelectionToolbarVisible) {
-      return undefined
-    }
+  const syncToolbarPositionToViewport = useCallback(() => {
+    updatePosition({ remeasureSelection: true })
+  }, [updatePosition])
 
-    let animationFrameId: number | null = null
-    const schedulePositionUpdate = () => {
-      if (animationFrameId !== null) {
-        return
-      }
-
-      animationFrameId = requestAnimationFrame(() => {
-        animationFrameId = null
-        updatePosition({ remeasureSelection: true })
-      })
-    }
-
-    const captureScrollOptions: AddEventListenerOptions = { capture: true, passive: true }
-    const passiveOptions: AddEventListenerOptions = { passive: true }
-    const selectionScrollTargets = selectionScrollTargetsRef.current
-    const visualViewport = window.visualViewport
-    const resizeObserver =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedulePositionUpdate)
-
-    document.addEventListener("scroll", schedulePositionUpdate, captureScrollOptions)
-    window.addEventListener("scroll", schedulePositionUpdate, passiveOptions)
-    window.addEventListener("resize", schedulePositionUpdate)
-    visualViewport?.addEventListener("scroll", schedulePositionUpdate, passiveOptions)
-    visualViewport?.addEventListener("resize", schedulePositionUpdate)
-    selectionScrollTargets.forEach((target) =>
-      target.addEventListener("scroll", schedulePositionUpdate, captureScrollOptions),
-    )
-    if (tooltipRef.current) {
-      resizeObserver?.observe(tooltipRef.current)
-    }
-
-    return () => {
-      document.removeEventListener("scroll", schedulePositionUpdate, true)
-      window.removeEventListener("scroll", schedulePositionUpdate)
-      window.removeEventListener("resize", schedulePositionUpdate)
-      visualViewport?.removeEventListener("scroll", schedulePositionUpdate)
-      visualViewport?.removeEventListener("resize", schedulePositionUpdate)
-      selectionScrollTargets.forEach((target) =>
-        target.removeEventListener("scroll", schedulePositionUpdate, true),
-      )
-      resizeObserver?.disconnect()
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId)
-      }
-    }
-  }, [isSelectionToolbarVisible, updatePosition])
-
+  useViewportChangeEvents(isSelectionToolbarVisible, syncToolbarPositionToViewport, {
+    extraScrollTargets: selectionScrollTargetsRef,
+    observedElement: tooltipRef,
+  })
   useEffect(() => {
     const handleMouseUp = (e: MouseEvent) => {
       if (isPointerDownInsideOverlayRef.current) {

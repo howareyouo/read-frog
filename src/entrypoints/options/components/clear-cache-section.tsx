@@ -1,17 +1,6 @@
 import { IconTrash } from "@tabler/icons-react"
 import { useContext, useState } from "react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/base-ui/alert-dialog"
-import { Button } from "@/components/ui/base-ui/button"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import type { I18nKey } from "@/utils/i18n"
 import { i18n } from "@/utils/i18n"
 import { sendMessage } from "@/utils/message"
@@ -83,30 +72,23 @@ export function ClearCacheSection({ variant }: { variant: keyof typeof CACHE_I18
         title={i18n.t(keys.itemTitle)}
         description={i18n.t(keys.itemDescription)}
       >
-        <AlertDialog open={open} onOpenChange={setOpen}>
-          <AlertDialogTrigger
-            render={<Button variant="destructive" size="sm" disabled={isClearing} />}
-          >
-            <IconTrash className="size-4" />
-            {isClearing ? i18n.t(keys.clearing) : i18n.t(keys.trigger)}
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{i18n.t(keys.dialogTitle)}</AlertDialogTitle>
-              <AlertDialogDescription>{i18n.t(keys.dialogDescription)}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{i18n.t(keys.cancel)}</AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                onClick={handleClearCache}
-                disabled={isClearing}
-              >
-                {isClearing ? i18n.t(keys.clearing) : i18n.t(keys.confirm)}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ConfirmActionDialog
+          open={open}
+          onOpenChange={setOpen}
+          trigger={
+            <>
+              <IconTrash className="size-4" />
+              {isClearing ? i18n.t(keys.clearing) : i18n.t(keys.trigger)}
+            </>
+          }
+          triggerButtonProps={{ variant: "destructive", size: "sm", disabled: isClearing }}
+          title={i18n.t(keys.dialogTitle)}
+          description={i18n.t(keys.dialogDescription)}
+          cancelLabel={i18n.t(keys.cancel)}
+          confirmLabel={isClearing ? i18n.t(keys.clearing) : i18n.t(keys.confirm)}
+          confirmDisabled={isClearing}
+          onConfirm={handleClearCache}
+        />
       </ConfigItem>
     </ConfigSection>
   )

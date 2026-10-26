@@ -5,6 +5,7 @@ import type { UnresolvedConfigs } from "../atoms/google-drive-sync"
 import { getLocalConfigAndMeta, setLocalConfigAndMeta } from "../config/storage"
 import { getLastSyncedConfigAndMeta, setLastSyncConfigAndMeta } from "../config/sync"
 import { CONFIG_SCHEMA_VERSION } from "../constants/config"
+import { toError } from "../error/message"
 import { logger } from "../logger"
 import { getRemoteConfigAndMetaWithUserEmail, setRemoteConfigAndMeta } from "./storage"
 
@@ -165,7 +166,7 @@ export async function syncConfig(): Promise<SyncResult> {
     logger.error("Config sync failed", error)
     return {
       status: "error",
-      error: error instanceof Error ? error : new Error(String(error)),
+      error: toError(error),
     }
   }
 }

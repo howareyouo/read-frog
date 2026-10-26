@@ -1,6 +1,4 @@
 import { useAtom } from "jotai"
-import { Input } from "@/components/ui/base-ui/input"
-import { toastManager } from "@/components/ui/base-ui/toast"
 import type { PreloadConfig } from "@/types/config/translate"
 import { preloadConfigSchema } from "@/types/config/translate"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
@@ -12,6 +10,7 @@ import {
 } from "@/utils/constants/translate"
 import { i18n } from "@/utils/i18n"
 import { ConfigItem } from "../../../components/config-item"
+import { SchemaNumberInput } from "../../../components/queue-number-inputs"
 
 type KeyOfPreloadConfig = keyof PreloadConfig
 
@@ -50,31 +49,20 @@ function PreloadNumberInput({ property }: { property: KeyOfPreloadConfig }) {
   const constraints = propertyConstraints[property]
 
   return (
-    <Input
-      className="w-24 shrink-0"
-      type="number"
+    <SchemaNumberInput
+      schema={preloadConfigSchema}
+      property={property}
+      value={preload[property]}
       min={constraints.min}
       max={constraints.max}
       step={constraints.step}
-      value={preload[property]}
-      onChange={(e) => {
-        const newConfigValue = Number(e.target.value)
-        const configParseResult = preloadConfigSchema
-          .partial()
-          .safeParse({ [property]: newConfigValue })
-        if (configParseResult.success) {
-          void setTranslateConfig({
-            page: {
-              ...translateConfig.page,
-              preload: { ...translateConfig.page.preload, [property]: newConfigValue },
-            },
-          })
-        } else {
-          toastManager.add({
-            type: "error",
-            title: configParseResult.error?.issues[0]!.message,
-          })
-        }
+      onCommit={(newConfigValue) => {
+        void setTranslateConfig({
+          page: {
+            ...translateConfig.page,
+            preload: { ...preload, [property]: newConfigValue },
+          },
+        })
       }}
     />
   )

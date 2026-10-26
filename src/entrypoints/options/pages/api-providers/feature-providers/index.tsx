@@ -1,10 +1,10 @@
-import { type ReactNode, useMemo } from "react"
+import type { ReactNode } from "react"
 import ProviderMultiSelector from "@/components/llm-providers/provider-multi-selector"
 import ProviderSelector from "@/components/llm-providers/provider-selector"
 import { SetApiKeyWarning } from "@/components/llm-providers/set-api-key-warning"
 import {
   useCustomActionProviders,
-  useFeatureProvider,
+  useSelectedFeatureProviders,
 } from "@/components/llm-providers/use-feature-providers"
 import type { ProviderConfig } from "@/types/config/provider"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
@@ -76,15 +76,8 @@ function FeatureProviderTitle({
 }
 
 function FeatureProviderItem({ featureKey }: { featureKey: FeatureKey }) {
-  const { providerOptions, providers, setProviders } = useFeatureProvider(featureKey)
-
-  const selectedProviders = useMemo(
-    () =>
-      providers
-        .map((id) => providerOptions.find((provider) => provider.id === id))
-        .filter((provider) => provider !== undefined),
-    [providers, providerOptions],
-  )
+  const { providerOptions, providers, setProviders, selectedProviders } =
+    useSelectedFeatureProviders(featureKey)
 
   return (
     <ConfigItem

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/base-ui/item"
 import { Spinner } from "@/components/ui/base-ui/spinner"
 import { toastManager } from "@/components/ui/base-ui/toast"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { ViewConfig } from "@/entrypoints/options/components/view-config"
 import { useExportConfig } from "@/hooks/use-export-config"
 import type { ConfigBackup, ConfigBackupMetadata } from "@/types/backup"
@@ -185,32 +186,16 @@ function MoreOptions({ backupId, backup }: { backupId: string; backup: ConfigBac
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {i18n.t("options.preference.config.backup.delete.title")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {i18n.t("options.preference.config.backup.delete.description")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              {i18n.t("options.preference.config.backup.delete.cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() =>
-                deleteBackup(backupId, { onSettled: () => setShowDeleteDialog(false) })
-              }
-              disabled={isDeleting}
-            >
-              {i18n.t("options.preference.config.backup.delete.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title={i18n.t("options.preference.config.backup.delete.title")}
+        description={i18n.t("options.preference.config.backup.delete.description")}
+        cancelLabel={i18n.t("options.preference.config.backup.delete.cancel")}
+        confirmLabel={i18n.t("options.preference.config.backup.delete.confirm")}
+        onConfirm={() => deleteBackup(backupId, { onSettled: () => setShowDeleteDialog(false) })}
+        confirmDisabled={isDeleting}
+      />
 
       <AlertDialog open={showExportDialog} onOpenChange={setShowExportDialog}>
         <AlertDialogContent>

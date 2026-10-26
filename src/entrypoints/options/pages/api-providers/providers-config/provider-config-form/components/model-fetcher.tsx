@@ -10,12 +10,11 @@ import type {
   LLMProviderConfig,
   ProtocolCompatibleLLMProviderConfig,
 } from "@/types/config/provider"
-import { DEFAULT_CONFIG } from "@/utils/constants/config"
 import { extractErrorMessage } from "@/utils/error/extract-message"
 import { i18n } from "@/utils/i18n"
-import { sendMessage } from "@/utils/message"
 import { getProviderConnectionURL } from "@/utils/providers/connection-url"
 import { getProviderModelsURL } from "@/utils/providers/models-url"
+import { probeProviderConnection } from "@/utils/providers/provider-connection"
 import {
   modelFetcherCacheAtom,
   patchModelFetcherUiStateAtom,
@@ -205,16 +204,11 @@ export function ModelFetcher({
       while (cursor < list.length) {
         const modelId = list[cursor++]!
         try {
-          await sendMessage("directTranslate", {
-            text: "Hi",
-            langConfig: DEFAULT_CONFIG.language,
-            // Same union-literal clash as ModelTestButton: only the model slot changes.
-            providerConfig: {
-              ...providerConfig,
-              apiKey: activeKey,
-              model: { ...providerConfig.model, model: modelId },
-            } as unknown as LLMProviderConfig,
-          })
+          await probeProviderConnection({
+            ...providerConfig,
+            apiKey: activeKey,
+            model: { ...providerConfig.model, model: modelId },
+          } as unknown as LLMProviderConfig)
           setBatchResults((results) => ({ ...results, [modelId]: "success" }))
           onToggleFavorite(modelId, true)
         } catch {

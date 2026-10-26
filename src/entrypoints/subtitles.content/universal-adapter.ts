@@ -11,6 +11,7 @@ import {
 import { getDocumentDescription } from "@/utils/content/metadata"
 import { resolveLanguageCodeFromLocale } from "@/utils/content/page-language"
 import { waitForElement } from "@/utils/dom/wait-for-element"
+import { getErrorMessage } from "@/utils/error/message"
 import { i18n } from "@/utils/i18n"
 import { OverlaySubtitlesError, ToastSubtitlesError } from "@/utils/subtitles/errors"
 import type { SubtitlesFetcher } from "@/utils/subtitles/fetchers/types"
@@ -599,7 +600,7 @@ export class UniversalVideoAdapter implements SubtitlesProvidersAdapter {
         return false
       }
 
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = getErrorMessage(error)
 
       if (error instanceof ToastSubtitlesError) {
         // The loading state has no auto-hide of its own (unlike "error"), so

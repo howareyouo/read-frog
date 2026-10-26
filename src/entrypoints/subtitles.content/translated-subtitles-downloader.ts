@@ -4,6 +4,7 @@ import type { Config } from "@/types/config/config"
 import { getCachedConfig } from "@/utils/config/storage"
 import { PROCESS_LOOK_AHEAD_MS } from "@/utils/constants/subtitles"
 import { resolveLanguageCodeFromLocale } from "@/utils/content/page-language"
+import { getErrorMessage } from "@/utils/error/message"
 import { i18n } from "@/utils/i18n"
 import type { SerializableProviderRef } from "@/utils/providers/provider-ref"
 import type { SubtitlesFetcher } from "@/utils/subtitles/fetchers/types"
@@ -117,7 +118,7 @@ export class TranslatedSubtitlesDownloader {
       }
       toastManager.add({
         type: "error",
-        title: error instanceof Error ? error.message : String(error),
+        title: getErrorMessage(error),
       })
       this.setStatus(TranslatedDownloadPhase.Idle, null)
     } finally {

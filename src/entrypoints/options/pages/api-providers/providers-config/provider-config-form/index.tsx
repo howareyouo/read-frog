@@ -1,5 +1,6 @@
 import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
+import { useFormExternalReset } from "@/components/form/use-form-external-reset"
 import { toastManager } from "@/components/ui/base-ui/toast"
 import type { APIProviderConfig, ProvidersConfig } from "@/types/config/provider"
 import {
@@ -91,18 +92,13 @@ function EditableProviderConfig({ providerConfig }: { providerConfig: APIProvide
     [connectState],
   )
 
-  useEffect(() => {
-    if (!currentProviderConfig || !isAPIProviderConfig(currentProviderConfig)) return
-    // Only external changes (another UI surface writing the same provider)
-    // need a reset; our own submit round-trips the exact values the form
-    // already holds, and resetting here is what turned every keystroke into a
-    // full re-validation + remount cycle.
-    const lastSubmitted = lastSubmittedConfigRef.current
-    if (lastSubmitted && JSON.stringify(lastSubmitted) === JSON.stringify(currentProviderConfig)) {
-      return
-    }
-    form.reset(currentProviderConfig)
-  }, [currentProviderConfig, form])
+  // The reset guard needs the narrowed config; any other shape means the
+  // provider row vanished mid-render — nothing to reset against.
+  const currentApiProviderConfig =
+    currentProviderConfig && isAPIProviderConfig(currentProviderConfig)
+      ? currentProviderConfig
+      : null
+  useFormExternalReset(form, currentApiProviderConfig, lastSubmittedConfigRef)
 
   const chooseNextProviderConfig = (providersConfig: ProvidersConfig) => {
     const firstProvider = providersConfig.find((provider) => !isNonAPIProvider(provider.provider))

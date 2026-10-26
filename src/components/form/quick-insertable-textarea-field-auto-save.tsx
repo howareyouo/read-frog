@@ -2,6 +2,7 @@ import { useSelector } from "@tanstack/react-store"
 import { Field, FieldError, FieldLabel } from "@/components/ui/base-ui/field"
 import type { InsertCell } from "@/components/ui/insertable-textarea"
 import { QuickInsertableTextarea } from "@/components/ui/insertable-textarea"
+import { formatFieldErrors } from "./field-error-text"
 import { useFieldContext } from "./form-context"
 import { useDebouncedSubmit } from "./use-debounced-submit"
 
@@ -45,9 +46,7 @@ export function QuickInsertableTextareaFieldAutoSave({
         insertCells={insertCells}
         readOnly={readOnly}
       />
-      <FieldError>
-        {errors.map((error) => (typeof error === "string" ? error : error?.message)).join(", ")}
-      </FieldError>
+      <FieldError>{formatFieldErrors(errors)}</FieldError>
     </Field>
   )
 }

@@ -1,5 +1,6 @@
 import { escapeText } from "entities"
 import type { TranslationTextFormat } from "@/types/config/translate"
+import { wrapParseError } from "@/utils/error/message"
 import { httpFetch } from "@/utils/request/http-fetch"
 
 // Unauthenticated successor to the api-edge.cognitive.microsofttranslator.com
@@ -86,7 +87,6 @@ export async function microsoftTranslate(
 
     return isSingle ? translations[0]! : translations
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to parse Microsoft translation response: ${message}`, { cause: error })
+    throw wrapParseError("Failed to parse Microsoft translation response", error)
   }
 }

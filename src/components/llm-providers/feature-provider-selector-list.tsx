@@ -1,4 +1,4 @@
-import { type ComponentProps, useMemo } from "react"
+import type { ComponentProps } from "react"
 import ProviderMultiSelector from "@/components/llm-providers/provider-multi-selector"
 import ProviderSelector from "@/components/llm-providers/provider-selector"
 import { Field, FieldGroup, FieldTitle } from "@/components/ui/base-ui/field"
@@ -7,7 +7,7 @@ import { FEATURE_KEYS, getFeatureLabelI18nKey } from "@/utils/constants/feature-
 import { i18n } from "@/utils/i18n"
 import { cn } from "@/utils/styles/utils"
 import { SetApiKeyWarning } from "./set-api-key-warning"
-import { useCustomActionProviders, useFeatureProvider } from "./use-feature-providers"
+import { useCustomActionProviders, useSelectedFeatureProviders } from "./use-feature-providers"
 
 type ProviderSelectorTriggerSize = ComponentProps<typeof ProviderSelector>["triggerSize"]
 
@@ -27,15 +27,8 @@ function FeatureProviderField({
   providerSelectorClassName?: string
   providerSelectorTriggerSize?: ProviderSelectorTriggerSize
 }) {
-  const { providerOptions, providers, setProviders } = useFeatureProvider(featureKey)
-
-  const selectedProviders = useMemo(
-    () =>
-      providers
-        .map((id) => providerOptions.find((provider) => provider.id === id))
-        .filter((provider) => provider !== undefined),
-    [providers, providerOptions],
-  )
+  const { providerOptions, providers, setProviders, selectedProviders } =
+    useSelectedFeatureProviders(featureKey)
 
   return (
     <Field>

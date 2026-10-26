@@ -77,6 +77,15 @@ export function attachRequestErrorMeta<T extends Error>(error: T, meta: RequestE
   return error
 }
 
+/**
+ * A refusal that is a property of capacity, not of the request: queues hand it
+ * a `pause-and-retry` window instead of failing (or, worse, draining the
+ * backlog the way a 401 would).
+ */
+export function rateLimitRequestError(message: string, retryAfterMs?: number): Error {
+  return attachRequestErrorMeta(new Error(message), { kind: "rate-limit", retryAfterMs })
+}
+
 export function getRequestErrorMeta(error: unknown): RequestErrorMeta {
   const source = isObject(error) ? (error as RetryAwareError) : undefined
   const attachedMeta = source?.[REQUEST_ERROR_META]
@@ -172,7 +181,10 @@ export const defaultRequestRetryPolicy: RequestRetryPolicy = {
         return { action: "fail", failQueue: true }
       }
       const retryAfterMs = getRetryAfterMs(meta, context.now)
-      const backoffMs = RATE_LIMIT_BASE_PAUSE_MS * 2 ** context.consecutiveRateLimits
+      const backoffMs = exponentialBackoffMs(
+        RATE_LIMIT_BASE_PAUSE_MS,
+        context.consecutiveRateLimits,
+      )
       const pauseMs = clampRetryDelay(Math.max(retryAfterMs ?? 0, withJitter(backoffMs)))
       return { action: "pause-and-retry", pauseMs }
     }
@@ -181,7 +193,7 @@ export const defaultRequestRetryPolicy: RequestRetryPolicy = {
       return { action: "fail" }
     }
 
-    const baseDelayMs = context.baseRetryDelayMs * 2 ** context.retryCount
+    const baseDelayMs = exponentialBackoffMs(context.baseRetryDelayMs, context.retryCount)
     const delayMs = clampRetryDelay(withJitter(baseDelayMs))
 
     return { action: "retry", delayMs }
@@ -357,6 +369,16 @@ function withJitter(delayMs: number): number {
 
 function clampRetryDelay(delayMs: number): number {
   return Math.min(Math.max(0, delayMs), MAX_RETRY_AFTER_MS)
+}
+
+/**
+ * The doubling rule shared by the task retry, the queue rate-limit pause and
+ * the provider cooldown backoffs (provider-cooldown, batch-queue). Jitter,
+ * Retry-After floors and caps stay at the call sites — they differ deliberately
+ * between the three.
+ */
+export function exponentialBackoffMs(baseMs: number, attempt: number): number {
+  return baseMs * 2 ** attempt
 }
 
 function removeUndefined<T extends Record<string, unknown>>(value: T): T {

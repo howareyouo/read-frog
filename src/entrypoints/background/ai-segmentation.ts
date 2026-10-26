@@ -1,4 +1,5 @@
 import { db } from "@/utils/db/dexie/db"
+import { getCachedValue, putCachedValue } from "@/utils/db/dexie/validated-cache"
 import { Sha256Hex } from "@/utils/hash"
 import { logger } from "@/utils/logger"
 import { getSubtitlesSegmentationPrompt } from "@/utils/prompts/subtitles-segmentation"
@@ -80,15 +81,15 @@ export async function runAiSegmentSubtitles(data: AiSegmentSubtitlesData): Promi
   // the sanity gates below (and the ones in segmentChunkWithFallback) run on
   // the result regardless of who produced it.
   const cacheKey = Sha256Hex(jsonContent)
-  const cached = await db.aiSegmentationCache.get(cacheKey)
+  const cached = await getCachedValue(
+    db.aiSegmentationCache,
+    cacheKey,
+    (record) => record.result,
+    (result) => parseSimplifiedVttToFragments(result).length > 0,
+  )
   if (cached) {
-    if (parseSimplifiedVttToFragments(cached.result).length > 0) {
-      logger.info("[Background] AI subtitle segmentation cache hit")
-      return cached.result
-    }
-    // Entry written before results were parse-checked; drop it and regenerate
-    // instead of serving the same unusable VTT on every attempt.
-    await db.aiSegmentationCache.delete(cacheKey)
+    logger.info("[Background] AI subtitle segmentation cache hit")
+    return cached
   }
 
   const { systemPrompt, prompt } = getSubtitlesSegmentationPrompt(jsonContent)
@@ -117,11 +118,7 @@ export async function runAiSegmentSubtitles(data: AiSegmentSubtitlesData): Promi
       throw new Error("AI segmentation returned an unparseable result")
     }
 
-    await db.aiSegmentationCache.put({
-      key: cacheKey,
-      result,
-      createdAt: new Date(),
-    })
+    await putCachedValue(db.aiSegmentationCache, { key: cacheKey, result })
 
     logger.info("[Background] AI subtitle segmentation completed")
     return result

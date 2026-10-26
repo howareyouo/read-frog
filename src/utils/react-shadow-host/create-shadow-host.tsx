@@ -1,15 +1,30 @@
+import type { ReactElement } from "react"
 import { createContext } from "react"
-import ReactDOM from "react-dom/client"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { TooltipProvider } from "@/components/ui/base-ui/tooltip"
 import type { Theme } from "@/types/config/theme"
-import { REACT_SHADOW_HOST_CLASS } from "../constants/dom-labels"
-import { ShadowHostBuilder } from "./shadow-host-builder"
+import { mountReactShadowUi } from "./mount-react-shadow-ui"
 
 export const ShadowWrapperContext = createContext<HTMLElement | null>(null)
 
+const SHADOW_HOST_CLEANUP_KEY = "__reactShadowContainerCleanup"
+
+/**
+ * Stashes the teardown of a host's React root on the host itself, so code that
+ * only holds the DOM node (mount dedup, the translation sweeper) can unmount it.
+ */
+export function stashShadowHostCleanup(host: HTMLElement, cleanup: () => void): void {
+  ;(host as unknown as Record<string, unknown>)[SHADOW_HOST_CLEANUP_KEY] = cleanup
+}
+
+export function getShadowHostCleanup(host: HTMLElement): (() => void) | undefined {
+  return (host as unknown as Record<string, unknown>)[SHADOW_HOST_CLEANUP_KEY] as
+    | (() => void)
+    | undefined
+}
+
 export function createReactShadowHost(
-  component: React.ReactElement,
+  component: ReactElement,
   options: {
     position: "inline" | "block"
     inheritStyles: boolean
@@ -24,41 +39,32 @@ export function createReactShadowHost(
   const shadowHost = document.createElement("div")
   if (className) shadowHost.className = className
 
-  shadowHost.classList.add(REACT_SHADOW_HOST_CLASS)
-  shadowHost.style.display = position
-
-  const shadowRoot = shadowHost.attachShadow({ mode: "open" })
-  const hostBuilder = new ShadowHostBuilder(shadowRoot, {
-    position,
+  // The caller places the host (a translated wrapper node, a platform player
+  // bar); this function only builds and renders it.
+  const cleanup = mountReactShadowUi({
     cssContent,
-    style,
+    host: shadowHost,
     inheritStyles,
+    position,
+    style,
+    target: null,
+    render: ({ container }) => (
+      <ShadowWrapperContext value={container}>
+        <ThemeProvider container={container} forcedTheme={forcedTheme}>
+          <TooltipProvider>{component}</TooltipProvider>
+        </ThemeProvider>
+      </ShadowWrapperContext>
+    ),
   })
-  const innerReactContainer = hostBuilder.build()
-
-  const root = ReactDOM.createRoot(innerReactContainer)
-  const wrappedComponent = (
-    <ShadowWrapperContext value={innerReactContainer}>
-      <ThemeProvider container={innerReactContainer} forcedTheme={forcedTheme}>
-        <TooltipProvider>{component}</TooltipProvider>
-      </ThemeProvider>
-    </ShadowWrapperContext>
-  )
-
-  root.render(wrappedComponent)
-
-  ;(shadowHost as any).__reactShadowContainerCleanup = () => {
-    root.unmount()
-    hostBuilder.cleanup()
-  }
+  stashShadowHostCleanup(shadowHost, cleanup)
 
   return shadowHost
 }
 
 export function removeReactShadowHost(shadowHost: HTMLElement) {
-  if (!(shadowHost as any).__reactShadowContainerCleaned) {
-    ;(shadowHost as any).__reactShadowContainerCleanup?.()
-    ;(shadowHost as any).__reactShadowContainerCleaned = true
+  if (!(shadowHost as unknown as Record<string, unknown>).__reactShadowContainerCleaned) {
+    getShadowHostCleanup(shadowHost)?.()
+    ;(shadowHost as unknown as Record<string, unknown>).__reactShadowContainerCleaned = true
   }
   shadowHost.remove()
 }

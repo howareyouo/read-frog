@@ -6,8 +6,8 @@ import type { BatchQueueConfig, RequestQueueConfig } from "@/types/config/transl
 import { batchQueueConfigSchema } from "@/types/config/translate"
 import type { SubtitlePromptContext, WebPagePromptContext } from "@/types/content"
 import { putBatchRequestRecord } from "@/utils/batch-request-record"
-import { getCachedConfig } from "@/utils/config/storage"
-import { CONFIG_STORAGE_KEY, DEFAULT_CONFIG } from "@/utils/constants/config"
+import { CONFIG_STORAGE_ITEM, getCachedConfig } from "@/utils/config/storage"
+import { DEFAULT_CONFIG } from "@/utils/constants/config"
 import {
   BATCH_SEGMENT_LINE_PATTERN,
   joinBatchSegments,
@@ -21,6 +21,8 @@ import {
 import { generateArticleSummary } from "@/utils/content/summary"
 import { cleanText } from "@/utils/content/utils"
 import { db } from "@/utils/db/dexie/db"
+import { getCachedValue, putCachedValue } from "@/utils/db/dexie/validated-cache"
+import { toError } from "@/utils/error/message"
 import { Sha256Hex } from "@/utils/hash"
 import type { PromptResolver } from "@/utils/host/translate/api/ai"
 import { executeTranslate } from "@/utils/host/translate/execute-translate"
@@ -36,7 +38,7 @@ import { getSubtitlesTranslatePrompt } from "@/utils/prompts/subtitles"
 import { getTranslatePrompt } from "@/utils/prompts/translate"
 import {
   apiKeyCooldownId,
-  classifyCredentialFailure,
+  classifyCredentialFailureOrThrow,
   listProviderApiKeys,
   listProviderModelIds,
   modelIdCooldownId,
@@ -61,7 +63,7 @@ import {
 import { BatchCountMismatchError, BatchQueue } from "@/utils/request/batch-queue"
 import { CancelledScopeRegistry, TranslationCancelledError } from "@/utils/request/cancellation"
 import { RequestQueue } from "@/utils/request/request-queue"
-import { attachRequestErrorMeta } from "@/utils/request/retry-policy"
+import { attachRequestErrorMeta, rateLimitRequestError } from "@/utils/request/retry-policy"
 import { toFriendlyTranslationErrorMessage } from "@/utils/subtitles/processor/friendly-error"
 import { generateTextForProviderRef } from "./background-stream"
 import { ensureInitializedConfig } from "./config"
@@ -161,20 +163,23 @@ async function getValidatedCachedTranslation(
   sourceText: string,
   validateHtmlAttributeMarkers: boolean,
 ): Promise<string | undefined> {
-  const cached = await db.translationCache.get(hash)
-  if (!cached) return undefined
-  if (!validateHtmlAttributeMarkers) return cached.translation
-
-  try {
-    assertHtmlAttributeMarkerIntegrity(sourceText, cached.translation)
-    return cached.translation
-  } catch (error) {
-    if (!isHtmlAttributeMarkerIntegrityError(error)) throw error
-
-    await db.translationCache.delete(hash)
-    logger.warn("Deleted cached translation with invalid HTML attribute markers", error)
-    return undefined
-  }
+  return getCachedValue(
+    db.translationCache,
+    hash,
+    (record) => record.translation,
+    validateHtmlAttributeMarkers
+      ? (translation) => {
+          try {
+            assertHtmlAttributeMarkerIntegrity(sourceText, translation)
+            return true
+          } catch (error) {
+            if (!isHtmlAttributeMarkerIntegrityError(error)) throw error
+            logger.warn("Deleted cached translation with invalid HTML attribute markers", error)
+            return false
+          }
+        }
+      : undefined,
+  )
 }
 
 async function executeBatchTranslation<TContext>(
@@ -248,9 +253,8 @@ export async function executeWithProviderFailover<T>(args: {
       clearProviderCooldown(providerId)
       return result
     } catch (error) {
-      const failure = classifyCredentialFailure(error)
-      if (!failure) throw error
-      markProviderCoolingDown(providerId, failure.reason, failure.retryAfterMs)
+      const { reason, retryAfterMs } = classifyCredentialFailureOrThrow(error)
+      markProviderCoolingDown(providerId, reason, retryAfterMs)
       lastError = error
     }
 
@@ -264,10 +268,7 @@ export async function executeWithProviderFailover<T>(args: {
       // Nothing selectable, but only because the fleet is cooling: hand the
       // queue a rate-limit error so it waits for the first recovery instead of
       // failing the batch (and, for 401s, draining everything behind it).
-      throw attachRequestErrorMeta(new Error("All subtitles providers are cooling down"), {
-        kind: "rate-limit",
-        retryAfterMs: recoveryMs,
-      })
+      throw rateLimitRequestError("All subtitles providers are cooling down", recoveryMs)
     }
     throw new Error("No subtitles translation provider available")
   }
@@ -277,10 +278,9 @@ export async function executeWithProviderFailover<T>(args: {
   // work in 2s.
   const recoveryMs = soonestCooldownRecoveryMs(candidates)
   if (recoveryMs > 0) {
-    const error = lastError instanceof Error ? lastError : new Error(String(lastError))
     // The first recovery in the fleet, not the last provider's own window: the
     // retry that follows the pause will be routed to whichever one is back.
-    throw attachRequestErrorMeta(error, { retryAfterMs: recoveryMs })
+    throw attachRequestErrorMeta(toError(lastError), { retryAfterMs: recoveryMs })
   }
   throw lastError
 }
@@ -308,16 +308,20 @@ async function getOrGenerateSummary(args: {
 
   const cacheKey = Sha256Hex(...cacheKeyParts, getProviderCacheIdentity(providerRef))
 
-  const cached = await db.articleSummaryCache.get(cacheKey)
+  const cached = await getCachedValue(db.articleSummaryCache, cacheKey, (record) => record.summary)
   if (cached) {
     logger.info("Using cached summary")
-    return cached.summary
+    return cached
   }
 
   const thunk = async (signal?: AbortSignal) => {
-    const cachedAgain = await db.articleSummaryCache.get(cacheKey)
+    const cachedAgain = await getCachedValue(
+      db.articleSummaryCache,
+      cacheKey,
+      (record) => record.summary,
+    )
     if (cachedAgain) {
-      return cachedAgain.summary
+      return cachedAgain
     }
 
     const summary = await generateArticleSummary(title, textContent, providerRef, {
@@ -328,11 +332,7 @@ async function getOrGenerateSummary(args: {
       return ""
     }
 
-    await db.articleSummaryCache.put({
-      key: cacheKey,
-      summary,
-      createdAt: new Date(),
-    })
+    await putCachedValue(db.articleSummaryCache, { key: cacheKey, summary })
 
     logger.info("Generated and cached new summary")
     return summary
@@ -672,7 +672,7 @@ function watchQueueConfig(
   },
 ) {
   let lastAppliedJson: string | null = null
-  storage.watch<Config>(`local:${CONFIG_STORAGE_KEY}`, (newConfig) => {
+  storage.watch<Config>(CONFIG_STORAGE_ITEM, (newConfig) => {
     if (!newConfig) return
     void queuesPromise.then(({ requestQueue, batchQueue }) => {
       try {
@@ -811,11 +811,7 @@ export function setUpWebPageTranslationQueue(): void {
 
     // Cache the translation result if successful
     if (result && hash) {
-      await db.translationCache.put({
-        key: hash,
-        translation: result,
-        createdAt: new Date(),
-      })
+      await putCachedValue(db.translationCache, { key: hash, translation: result })
     }
 
     return result
@@ -900,7 +896,7 @@ function clearProviderCooldownEntries(
 
 function watchProviderConfigForCooldownReset(): void {
   let lastProvidersConfig: ProviderConfig[] | null = null
-  storage.watch<Config>(`local:${CONFIG_STORAGE_KEY}`, (newConfig) => {
+  storage.watch<Config>(CONFIG_STORAGE_ITEM, (newConfig) => {
     if (!newConfig?.providersConfig) return
     const nextProvidersConfig = newConfig.providersConfig
     if (lastProvidersConfig !== null) {
@@ -959,9 +955,9 @@ export function setUpSubtitlesTranslationQueue(): void {
       videoSummary: normalizePromptContextValue(summary),
     }
 
-    const cached = await db.translationCache.get(hash)
+    const cached = await getCachedValue(db.translationCache, hash, (record) => record.translation)
     if (cached) {
-      return { translation: cached.translation }
+      return { translation: cached }
     }
 
     const config = await getCachedConfig()
@@ -1010,7 +1006,7 @@ export function setUpSubtitlesTranslationQueue(): void {
           })
         result = await requestQueue.enqueue(thunk, scheduleAt, hash, undefined, { dueAt })
       }
-      await db.translationCache.put({ key: hash, translation: result, createdAt: new Date() })
+      await putCachedValue(db.translationCache, { key: hash, translation: result })
       return { translation: result }
     } catch (error) {
       // A failed cue reports null; the content side keeps every cue that

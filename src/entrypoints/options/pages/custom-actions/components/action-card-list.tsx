@@ -1,7 +1,8 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { useContext, useEffect, useMemo, useState } from "react"
+import { useAtom, useSetAtom } from "jotai"
+import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router"
 import { Icon } from "@/components/icons/icon"
+import { useSelectableProviders } from "@/components/llm-providers/use-feature-providers"
 import { SortableList } from "@/components/sortable-list"
 import { Button } from "@/components/ui/base-ui/button"
 import { Dialog, DialogTrigger } from "@/components/ui/base-ui/dialog"
@@ -12,7 +13,6 @@ import type { CustomActionTemplate } from "@/utils/constants/custom-action-templ
 import { getBuiltInDictionaryAction, patchSelectionToolbarAction } from "@/utils/custom-actions"
 import { i18n } from "@/utils/i18n"
 import { getUniqueName } from "@/utils/name"
-import { getSelectableProvidersForCapability } from "@/utils/providers/provider-registry"
 import { EntityListItem } from "../../../components/entity-list-item"
 import { EntityListRail } from "../../../components/entity-list-rail"
 import { selectedCustomActionIdAtom } from "../atoms"
@@ -23,7 +23,6 @@ export function CustomActionCardList() {
     configFieldsAtomMap.selectionToolbar,
   )
   const setSelectedCustomActionId = useSetAtom(selectedCustomActionIdAtom)
-  const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
   const { search } = useLocation()
   const navigate = useNavigate()
   const [dialogOpen, setDialogOpen] = useState(() => new URLSearchParams(search).has("addAction"))
@@ -49,10 +48,7 @@ export function CustomActionCardList() {
     }
   }, [search, navigate, customActions, setSelectedCustomActionId])
 
-  const customActionProviders = useMemo(
-    () => getSelectableProvidersForCapability("customAction", providersConfig),
-    [providersConfig],
-  )
+  const customActionProviders = useSelectableProviders("customAction")
 
   const handleTemplateSelect = (template: CustomActionTemplate) => {
     if (customActionProviders.length === 0) return

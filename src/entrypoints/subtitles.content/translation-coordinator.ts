@@ -8,6 +8,7 @@ import {
   TRANSLATE_LEAD_MS,
   TRANSLATE_TICK_INTERVAL_MS,
 } from "@/utils/constants/subtitles"
+import { getErrorMessage } from "@/utils/error/message"
 import { effectiveLookAheadMs } from "@/utils/subtitles/lookahead"
 import type { SubtitlesVideoContext } from "@/utils/subtitles/processor/translator"
 import { translateSubtitles } from "@/utils/subtitles/processor/translator"
@@ -336,6 +337,11 @@ export class TranslationCoordinator {
     void this.applyTranslationResult(batch, runId, currentTimeMs, config)
   }
 
+  /** Whether this round still belongs to the current active run. */
+  private isCurrentRun(runId: number): boolean {
+    return this.active && runId === this.runId
+  }
+
   private async applyTranslationResult(
     batch: SubtitlesFragment[],
     runId: number,
@@ -349,7 +355,7 @@ export class TranslationCoordinator {
     // behind that farthest sibling, so a larger look-ahead made "loading" last
     // longer, the opposite of its purpose.
     const publishOne = (fragment: SubtitlesFragment) => {
-      if (!this.active || runId !== this.runId) return
+      if (!this.isCurrentRun(runId)) return
       const [valid] = this.filterIdentityValid([fragment])
       if (!valid) return
       this.translatingStarts.delete(valid.start)
@@ -367,7 +373,7 @@ export class TranslationCoordinator {
         requestedTimeMs,
         publishOne,
       )
-      if (!this.active || runId !== this.runId) {
+      if (!this.isCurrentRun(runId)) {
         return
       }
 
@@ -389,7 +395,7 @@ export class TranslationCoordinator {
       const latestFragments = this.getFragments()
       this.updateLoadingStateAt(latestTimeMs, latestFragments)
     } catch (error) {
-      if (!this.active || runId !== this.runId) {
+      if (!this.isCurrentRun(runId)) {
         return
       }
 
@@ -406,7 +412,7 @@ export class TranslationCoordinator {
       })
 
       const config = await getCachedConfig()
-      if (!this.active || runId !== this.runId) {
+      if (!this.isCurrentRun(runId)) {
         return
       }
 
@@ -421,12 +427,12 @@ export class TranslationCoordinator {
         this.onTranslated(fallback)
       }
 
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = getErrorMessage(error)
       this.lastEmittedState = "error"
       this.onStateChange("error", { message: errorMessage })
     } finally {
       // Only the current generation may chain another tick to drain remaining work.
-      if (runId === this.runId && this.active) {
+      if (this.isCurrentRun(runId)) {
         this.handleTranslationTick()
       }
     }

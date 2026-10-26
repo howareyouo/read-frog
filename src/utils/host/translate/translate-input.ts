@@ -6,18 +6,10 @@ import { getDetectedCodeFromStorage, getFinalSourceCode } from "@/utils/config/l
 import { getDocumentDescription } from "@/utils/content/metadata"
 import { resolveFeatureProviderRefForRequest } from "@/utils/providers/feature-provider-resolver"
 import { serializeProviderRef } from "@/utils/providers/provider-ref"
-import { getCachedConfig } from "../../config/storage"
+import { getConfigOrThrow } from "../../config/get-config-or-throw"
 import { translateTextCore } from "./translate-text"
 import { truncateWebPageContent } from "./webpage-content"
 import { getOrGenerateWebPageSummary } from "./webpage-summary"
-
-async function getConfigOrThrow(): Promise<Config> {
-  const config = await getCachedConfig()
-  if (!config) {
-    throw new Error("No global config when translate text")
-  }
-  return config
-}
 
 /**
  * Lightweight webpage context for input translation.

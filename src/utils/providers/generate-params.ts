@@ -18,9 +18,13 @@ export interface LocalGenerateTextParams {
  * routing all three through one hosted/local helper needs a single source for
  * it.
  */
-export function buildLocalGenerateTextParams(config: LLMProviderConfig): LocalGenerateTextParams {
+export function buildLocalGenerateTextParams(
+  config: LLMProviderConfig,
+  /** A rotated credential may pin a different model than the row's primary selection. */
+  modelIdOverride?: string,
+): LocalGenerateTextParams {
   const reasoning = getTopLevelReasoning(config)
-  const modelName = resolveModelId(config.model)
+  const modelName = modelIdOverride ?? resolveModelId(config.model)
 
   return {
     reasoning,

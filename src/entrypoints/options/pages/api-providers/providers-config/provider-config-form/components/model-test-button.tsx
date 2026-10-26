@@ -5,9 +5,8 @@ import LoadingDots from "@/components/loading-dots"
 import { Button } from "@/components/ui/base-ui/button"
 import type { LLMProviderConfig } from "@/types/config/provider"
 import { getObjectWithoutAPIKeys } from "@/utils/config/api"
-import { DEFAULT_CONFIG } from "@/utils/constants/config"
 import { i18n } from "@/utils/i18n"
-import { sendMessage } from "@/utils/message"
+import { probeProviderConnection } from "@/utils/providers/provider-connection"
 
 /**
  * Connectivity test for ONE model of a rotation list. The provider config is
@@ -43,11 +42,7 @@ export function ModelTestButton({
     // for safety, we should not include apiKey in the mutationKey
     mutationKey: ["modelConnection", getObjectWithoutAPIKeys(testConfig)],
     mutationFn: async () => {
-      return await sendMessage("directTranslate", {
-        text: "Hi",
-        langConfig: DEFAULT_CONFIG.language,
-        providerConfig: testConfig,
-      })
+      return await probeProviderConnection(testConfig)
     },
   })
 

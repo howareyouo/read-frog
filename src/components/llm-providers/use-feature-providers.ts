@@ -11,8 +11,23 @@ import {
 } from "@/utils/constants/feature-providers"
 import { getSelectionToolbarActions, patchSelectionToolbarAction } from "@/utils/custom-actions"
 import type { ProviderSelectorOption } from "@/utils/providers/provider-display"
-import { getSelectableProvidersForCapability } from "@/utils/providers/provider-registry"
+import {
+  getSelectableProvidersForCapability,
+  type ProviderCapability,
+} from "@/utils/providers/provider-registry"
 import { providerSupportsTranslationOnlyMode } from "@/utils/providers/translation-only-gate"
+
+/**
+ * The enabled providers a capability can run on, as selector options — the
+ * read-only list every provider picker starts from.
+ */
+export function useSelectableProviders(capability: ProviderCapability) {
+  const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
+  return useMemo(
+    () => getSelectableProvidersForCapability(capability, providersConfig),
+    [capability, providersConfig],
+  )
+}
 
 export interface FeatureProviderBinding {
   providerOptions: ProviderSelectorOption[]
@@ -69,6 +84,22 @@ export function useFeatureProvider(featureKey: FeatureKey): FeatureProviderBindi
   }
 }
 
+/**
+ * `useFeatureProvider` plus the resolved configs of the selected providers — everything a
+ * "feature → label with API-key warning → multi-select" row needs, however it is laid out.
+ */
+export function useSelectedFeatureProviders(featureKey: FeatureKey) {
+  const { providerOptions, providers, setProviders, ...rest } = useFeatureProvider(featureKey)
+  const selectedProviders = useMemo(
+    () =>
+      providers
+        .map((id) => providerOptions.find((provider) => provider.id === id))
+        .filter((provider) => provider !== undefined),
+    [providers, providerOptions],
+  )
+  return { providerOptions, providers, setProviders, selectedProviders, ...rest }
+}
+
 export interface CustomActionProvidersBinding {
   /** Only the actions the user can actually trigger, so disabled ones stay out of the UI. */
   actions: SelectionToolbarCustomAction[]
@@ -83,10 +114,7 @@ export function useCustomActionProviders(): CustomActionProvidersBinding {
   const setConfig = useSetAtom(writeConfigAtom)
   const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
 
-  const providerOptions = useMemo(
-    () => getSelectableProvidersForCapability("customAction", providersConfig),
-    [providersConfig],
-  )
+  const providerOptions = useSelectableProviders("customAction")
 
   const actions = useMemo(
     () =>

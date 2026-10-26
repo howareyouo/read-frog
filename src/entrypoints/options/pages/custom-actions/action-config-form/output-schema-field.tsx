@@ -1,21 +1,12 @@
 import { useForm } from "@tanstack/react-form"
-import { useContext, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
+import { FieldErrorText } from "@/components/form/field-error-text"
 import { fieldContext as FieldContext } from "@/components/form/form-context"
 import { InputFieldAutoSave as InputField } from "@/components/form/input-field-auto-save"
 import { QuickInsertableTextareaFieldAutoSave as QuickInsertableTextareaField } from "@/components/form/quick-insertable-textarea-field-auto-save"
 import { SelectFieldAutoSave as SelectField } from "@/components/form/select-field-auto-save"
 import { Icon } from "@/components/icons/icon"
 import { SortableList } from "@/components/sortable-list"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/base-ui/alert-dialog"
 import { Badge } from "@/components/ui/base-ui/badge"
 import { Button } from "@/components/ui/base-ui/button"
 import {
@@ -33,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/base-ui/select"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import type {
   SelectionToolbarCustomAction,
   SelectionToolbarCustomActionOutputField,
@@ -210,20 +202,15 @@ function DeleteFieldDialog({
   onConfirm: () => void
 }) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{t("deleteFieldDialog.title")}</AlertDialogTitle>
-          <AlertDialogDescription>{t("deleteFieldDialog.description")}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t("deleteFieldDialog.cancel")}</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={onConfirm}>
-            {t("deleteFieldDialog.confirm")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("deleteFieldDialog.title")}
+      description={t("deleteFieldDialog.description")}
+      cancelLabel={t("deleteFieldDialog.cancel")}
+      confirmLabel={t("deleteFieldDialog.confirm")}
+      onConfirm={onConfirm}
+    />
   )
 }
 
@@ -423,11 +410,7 @@ export const OutputSchemaField = withForm({
                 }}
               />
 
-              {field.state.meta.errors.length > 0 && (
-                <span className="text-sm font-normal text-destructive">
-                  {field.state.meta.errors.join(", ")}
-                </span>
-              )}
+              <FieldErrorText errors={field.state.meta.errors} />
             </Field>
           )
         }}

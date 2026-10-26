@@ -11,15 +11,13 @@ import { ComposeProviders } from "@/utils/compose-providers"
 import { APP_NAME } from "@/utils/constants/app"
 import { initI18n } from "@/utils/i18n"
 import { LocaleBoundary } from "@/utils/i18n/locale-boundary"
+import { ShadowWrapperContext } from "@/utils/react-shadow-host/create-shadow-host"
 import { protectSelectAllShadowRoot } from "@/utils/select-all"
 import { insertShadowRootUIWrapperInto, OVERLAY_SHADOW_ROOT_CSS } from "@/utils/shadow-root"
 import { clearEffectiveSiteControlUrl } from "@/utils/site-control"
 import { getLocalThemeMode } from "@/utils/theme"
 import App from "./app"
 import { setupExternalSelectionSource } from "./external-selection-source"
-
-// eslint-disable-next-line import/no-mutable-exports
-export let shadowWrapper: HTMLElement | null = null
 
 async function mountSelectionUI(ctx: ContentScriptContext) {
   const themeMode = await getLocalThemeMode()
@@ -31,7 +29,6 @@ async function mountSelectionUI(ctx: ContentScriptContext) {
     css: OVERLAY_SHADOW_ROOT_CSS,
     onMount: (container, shadow, shadowHost) => {
       const wrapper = insertShadowRootUIWrapperInto(container, shadowHost)
-      shadowWrapper = wrapper
       protectSelectAllShadowRoot(shadowHost, wrapper)
 
       const root = ReactDOM.createRoot(wrapper)
@@ -42,6 +39,7 @@ async function mountSelectionUI(ctx: ContentScriptContext) {
             (children) => (
               <ConfigHydrateProvider themeMode={themeMode}>{children}</ConfigHydrateProvider>
             ),
+            (children) => <ShadowWrapperContext value={wrapper}>{children}</ShadowWrapperContext>,
             (children) => <ThemeProvider container={wrapper}>{children}</ThemeProvider>,
             (children) => <TooltipProvider>{children}</TooltipProvider>,
             (children) => <LocaleBoundary>{children}</LocaleBoundary>,
@@ -54,7 +52,6 @@ async function mountSelectionUI(ctx: ContentScriptContext) {
     },
     onRemove: (root) => {
       root?.unmount()
-      shadowWrapper = null
     },
   })
 

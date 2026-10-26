@@ -1,4 +1,5 @@
 import { getRandomUUID } from "@/utils/crypto-polyfill"
+import { exponentialBackoffMs } from "@/utils/request/retry-policy"
 import { TranslationCancelledError } from "./cancellation"
 import {
   createDeferred,
@@ -745,7 +746,7 @@ export class BatchQueue<T, R, TProvider = unknown> {
   }
 
   private calculateBackoffDelay(retryCount: number): number {
-    return Math.min(BASE_BACKOFF_DELAY_MS * 2 ** retryCount, MAX_BACKOFF_DELAY_MS)
+    return Math.min(exponentialBackoffMs(BASE_BACKOFF_DELAY_MS, retryCount), MAX_BACKOFF_DELAY_MS)
   }
 
   private sleep(ms: number): Promise<void> {

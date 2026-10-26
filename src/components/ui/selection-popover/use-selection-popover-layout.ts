@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react"
 import { flushSync } from "react-dom"
+import { clamp } from "@/utils/utils"
 
 interface Position {
   x: number
@@ -57,10 +58,6 @@ export const SELECTION_POPOVER_RESIZE_HANDLE_STYLES = {
   bottomLeft: { bottom: -6, left: -6, width: 14, height: 14 },
   topLeft: { top: -6, left: -6, width: 14, height: 14 },
 } as const
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
-}
 
 function getViewportMaxWidth() {
   return Math.max(window.innerWidth, 0)

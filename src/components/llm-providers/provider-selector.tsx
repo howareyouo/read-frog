@@ -51,48 +51,6 @@ export function getProviderSelectorGroups(
   return groups.filter((group) => group.providers.length > 0)
 }
 
-export default function ProviderSelector({
-  providers,
-  value,
-  onChange,
-  placeholder,
-  className,
-  triggerSize = "default",
-  selectContentProps,
-}: ProviderSelectorProps) {
-  const { theme } = useTheme()
-  const currentProvider = providers.find((p) => p.id === value)
-  const providerGroups = getProviderSelectorGroups(providers)
-
-  if (providerGroups.length > 1) {
-    return (
-      <GroupedSelect
-        providerGroups={providerGroups}
-        currentProvider={currentProvider}
-        onChange={onChange}
-        placeholder={placeholder}
-        className={className}
-        triggerSize={triggerSize}
-        selectContentProps={selectContentProps}
-        theme={theme}
-      />
-    )
-  }
-
-  return (
-    <UngroupedSelect
-      providers={providers}
-      currentProvider={currentProvider}
-      onChange={onChange}
-      placeholder={placeholder}
-      className={className}
-      triggerSize={triggerSize}
-      selectContentProps={selectContentProps}
-      theme={theme}
-    />
-  )
-}
-
 /**
  * Base UI calls the `<SelectValue>` children function with `null` when the
  * select has no value, which happens here whenever the configured provider id
@@ -115,84 +73,19 @@ function renderProviderValue(
   )
 }
 
-function GroupedSelect({
-  providerGroups,
-  currentProvider,
-  onChange,
-  placeholder,
-  className,
-  triggerSize,
-  theme,
-  selectContentProps,
-}: {
-  providerGroups: ProviderSelectorGroup[]
-  currentProvider: ProviderSelectorOption | undefined
-  onChange: (id: string) => void
-  placeholder?: string
-  className?: string
-  triggerSize: ProviderSelectorTriggerSize
-  selectContentProps?: Pick<
-    ComponentProps<typeof SelectContent>,
-    "container" | "positionerClassName" | "align"
-  >
-  theme: Theme
-}) {
-  return (
-    <Select<ProviderSelectorOption>
-      value={currentProvider}
-      onValueChange={(provider) => {
-        if (!provider) return
-        onChange(provider.id)
-      }}
-      itemToStringValue={(p) => p.id}
-    >
-      <SelectTrigger className={className} size={triggerSize}>
-        <SelectValue placeholder={placeholder}>
-          {(provider) => renderProviderValue(provider, theme, placeholder)}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent {...selectContentProps}>
-        {providerGroups.map((group) => (
-          <SelectGroup key={group.labelKey}>
-            <SelectLabel>{i18n.t(group.labelKey)}</SelectLabel>
-            {group.providers.map((provider) => (
-              <SelectItem key={provider.id} value={provider}>
-                <ProviderIcon
-                  logo={getProviderLogo(provider, theme)}
-                  name={getProviderName(provider)}
-                  size="sm"
-                />
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-function UngroupedSelect({
+export default function ProviderSelector({
   providers,
-  currentProvider,
+  value,
   onChange,
   placeholder,
   className,
-  triggerSize,
-  theme,
+  triggerSize = "default",
   selectContentProps,
-}: {
-  providers: ProviderSelectorOption[]
-  currentProvider: ProviderSelectorOption | undefined
-  onChange: (id: string) => void
-  placeholder?: string
-  className?: string
-  triggerSize: ProviderSelectorTriggerSize
-  selectContentProps?: Pick<
-    ComponentProps<typeof SelectContent>,
-    "container" | "positionerClassName" | "align"
-  >
-  theme: Theme
-}) {
+}: ProviderSelectorProps) {
+  const { theme } = useTheme()
+  const currentProvider = providers.find((p) => p.id === value)
+  const providerGroups = getProviderSelectorGroups(providers)
+
   return (
     <Select<ProviderSelectorOption>
       value={currentProvider}
@@ -209,17 +102,22 @@ function UngroupedSelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent {...selectContentProps}>
-        <SelectGroup>
-          {providers.map((provider) => (
-            <SelectItem key={provider.id} value={provider}>
-              <ProviderIcon
-                logo={getProviderLogo(provider, theme)}
-                name={getProviderName(provider)}
-                size="sm"
-              />
-            </SelectItem>
-          ))}
-        </SelectGroup>
+        {/* A single group renders label-free: the flat list the multi-kind
+            lists used to get, just wrapped in an (invisible) SelectGroup. */}
+        {providerGroups.map((group) => (
+          <SelectGroup key={group.labelKey}>
+            {providerGroups.length > 1 && <SelectLabel>{i18n.t(group.labelKey)}</SelectLabel>}
+            {group.providers.map((provider) => (
+              <SelectItem key={provider.id} value={provider}>
+                <ProviderIcon
+                  logo={getProviderLogo(provider, theme)}
+                  name={getProviderName(provider)}
+                  size="sm"
+                />
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        ))}
       </SelectContent>
     </Select>
   )

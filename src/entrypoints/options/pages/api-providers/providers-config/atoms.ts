@@ -1,5 +1,6 @@
 import { atom } from "jotai"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
+import { createSelectedEntityAtom } from "@/utils/atoms/selected-entity"
 import { getAPIProvidersConfig } from "@/utils/config/helpers"
 
 /**
@@ -16,20 +17,12 @@ export const highlightedProviderFieldAtom = atom<"apiKey" | null>(null)
  */
 export const PROVIDER_FIELD_HIGHLIGHT_DURATION_MS = 2700
 
-const internalSelectedProviderIdAtom = atom<string | undefined>(undefined)
+export const selectedProviderIdAtom = createSelectedEntityAtom((get, selected) => {
+  if (selected !== undefined) {
+    return selected
+  }
 
-export const selectedProviderIdAtom = atom(
-  (get) => {
-    const selected = get(internalSelectedProviderIdAtom)
-    if (selected !== undefined) {
-      return selected
-    }
-
-    const providersConfig = get(configFieldsAtomMap.providersConfig)
-    const apiProvidersConfig = getAPIProvidersConfig(providersConfig)
-    return apiProvidersConfig[0]?.id
-  },
-  (_get, set, newValue: string | undefined) => {
-    set(internalSelectedProviderIdAtom, newValue)
-  },
-)
+  const providersConfig = get(configFieldsAtomMap.providersConfig)
+  const apiProvidersConfig = getAPIProvidersConfig(providersConfig)
+  return apiProvidersConfig[0]?.id
+})

@@ -1,16 +1,15 @@
 import { useAtomValue, useSetAtom } from "jotai"
 import type { ReactNode } from "react"
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
+import { useSelectableProviders } from "@/components/llm-providers/use-feature-providers"
 import { toastManager } from "@/components/ui/base-ui/toast"
 import { SelectionPopover } from "@/components/ui/selection-popover"
 import { configFieldsAtomMap, writeConfigAtom } from "@/utils/atoms/config"
 import { findSelectionToolbarAction, patchSelectionToolbarAction } from "@/utils/custom-actions"
 import { onMessage } from "@/utils/message"
-import {
-  getSelectableProvidersForCapability,
-  resolveProviderRefForCapability,
-} from "@/utils/providers/provider-registry"
-import { shadowWrapper } from "../../bootstrap"
+import { resolveProviderRefForCapability } from "@/utils/providers/provider-registry"
+import { createContextWithHook } from "@/utils/react/context"
+import { ShadowWrapperContext } from "@/utils/react-shadow-host/create-shadow-host"
 import { SelectionToolbarErrorAlert } from "../../components/selection-toolbar-error-alert"
 import { SelectionToolbarFooterContent } from "../../components/selection-toolbar-footer-content"
 import { SelectionToolbarTitleContent } from "../../components/selection-toolbar-title-content"
@@ -38,18 +37,12 @@ interface SelectionCustomActionContextValue {
   openToolbarCustomAction: (actionId: string, triggerElement: HTMLElement | null) => void
 }
 
-const SelectionCustomActionContext = createContext<SelectionCustomActionContextValue | null>(null)
-
-function useSelectionCustomActionContext() {
-  const context = useContext(SelectionCustomActionContext)
-  if (!context) {
-    throw new Error(
-      "Selection custom action triggers must be used within SelectionCustomActionProvider.",
-    )
-  }
-
-  return context
-}
+const {
+  Context: SelectionCustomActionContext,
+  useRequiredContext: useSelectionCustomActionContext,
+} = createContextWithHook<SelectionCustomActionContextValue>(
+  "Selection custom action triggers must be used within SelectionCustomActionProvider.",
+)
 
 export function useSelectionCustomActionPopover() {
   return useSelectionCustomActionContext()
@@ -121,10 +114,7 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
     }),
     [activeAction, language, providersConfig],
   )
-  const customActionProviders = useMemo(
-    () => getSelectableProvidersForCapability("customAction", providersConfig),
-    [providersConfig],
-  )
+  const customActionProviders = useSelectableProviders("customAction")
   const executionPlan = useMemo(
     () =>
       buildCustomActionExecutionPlan(
@@ -233,6 +223,8 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
     }),
     [openToolbarCustomAction],
   )
+
+  const shadowWrapper = useContext(ShadowWrapperContext)
 
   return (
     <SelectionCustomActionContext value={contextValue}>

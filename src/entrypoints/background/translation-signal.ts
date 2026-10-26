@@ -1,8 +1,8 @@
 import type { LangCodeISO6393 } from "@read-frog/definitions"
 import { browser, storage } from "#imports"
-import type { Config } from "@/types/config/config"
 import { normalizeDetectedCode } from "@/utils/config/languages"
-import { CONFIG_STORAGE_KEY, DEFAULT_DETECTED_CODE } from "@/utils/constants/config"
+import { getCachedConfig } from "@/utils/config/storage"
+import { DEFAULT_DETECTED_CODE } from "@/utils/constants/config"
 import { getDetectedCodeStateKey, getTranslationStateKey } from "@/utils/constants/storage-keys"
 import { shouldEnableAutoTranslation } from "@/utils/host/translate/auto-translation"
 import { logger } from "@/utils/logger"
@@ -110,7 +110,7 @@ export function translationMessage() {
         notifyDetectedCodeChanged(detectedCode)
       }
 
-      const config = await storage.getItem<Config>(`local:${CONFIG_STORAGE_KEY}`)
+      const config = await getCachedConfig()
       if (!config) return
 
       const shouldEnable = await shouldEnableAutoTranslation(url, detectedCodeOrUnd, config)

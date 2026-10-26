@@ -1,19 +1,10 @@
 import { useAtom, useSetAtom } from "jotai"
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useContext, useRef } from "react"
 import { QuickInsertableTextareaFieldAutoSave } from "@/components/form/quick-insertable-textarea-field-auto-save"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/base-ui/alert-dialog"
+import { useFormExternalReset } from "@/components/form/use-form-external-reset"
 import { Button } from "@/components/ui/base-ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/base-ui/tooltip"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import {
@@ -89,7 +80,7 @@ function useActionEditorController(
   const [selectionToolbar, setSelectionToolbar] = useAtom(configFieldsAtomMap.selectionToolbar)
   const setSelectedActionId = useSetAtom(selectedCustomActionIdAtom)
 
-  // Config written by our own submit — the effect below must not reset the form
+  // Config written by our own submit — the reset guard must not reset the form
   // back to it, or characters typed during the submit debounce get reverted.
   const lastSubmittedActionRef = useRef<SelectionToolbarCustomAction | null>(null)
   const form = useActionForm(action, async (nextAction) => {
@@ -97,16 +88,7 @@ function useActionEditorController(
     await setSelectionToolbar(replaceSelectionToolbarAction(selectionToolbar, nextAction))
   })
 
-  useEffect(() => {
-    // Only external changes need a reset; our own submit round-trips the exact
-    // values the form already holds, and resetting here turns every autosave
-    // write into a remount of the form the user is typing in.
-    const lastSubmitted = lastSubmittedActionRef.current
-    if (lastSubmitted && JSON.stringify(lastSubmitted) === JSON.stringify(action)) {
-      return
-    }
-    form.reset(action)
-  }, [action, form])
+  useFormExternalReset(form, action, lastSubmittedActionRef)
 
   const allActions = getSelectionToolbarActions(selectionToolbar)
 
@@ -281,32 +263,17 @@ function CustomizeButton() {
 
 function DeleteButton() {
   const deleteAction = useRequiredActionEditorCommand("delete")
-  const [open, setOpen] = useState(false)
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button type="button" variant="destructive" size="sm" />}>
-        {i18n.t("options.selectionToolbar.customActions.form.delete")}
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {i18n.t("options.selectionToolbar.customActions.form.deleteDialog.title")}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {i18n.t("options.selectionToolbar.customActions.form.deleteDialog.description")}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>
-            {i18n.t("options.selectionToolbar.customActions.form.deleteDialog.cancel")}
-          </AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={() => void deleteAction()}>
-            {i18n.t("options.selectionToolbar.customActions.form.deleteDialog.confirm")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmActionDialog
+      trigger={i18n.t("options.selectionToolbar.customActions.form.delete")}
+      triggerButtonProps={{ variant: "destructive", size: "sm" }}
+      title={i18n.t("options.selectionToolbar.customActions.form.deleteDialog.title")}
+      description={i18n.t("options.selectionToolbar.customActions.form.deleteDialog.description")}
+      cancelLabel={i18n.t("options.selectionToolbar.customActions.form.deleteDialog.cancel")}
+      confirmLabel={i18n.t("options.selectionToolbar.customActions.form.deleteDialog.confirm")}
+      onConfirm={() => void deleteAction()}
+    />
   )
 }
 

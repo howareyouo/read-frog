@@ -3,6 +3,7 @@ import { browser } from "#imports"
 import { db } from "@/utils/db/dexie/db"
 import type BatchRequestRecord from "@/utils/db/dexie/tables/batch-request-record"
 import { logger } from "@/utils/logger"
+import { getDateFromDaysBack } from "@/utils/utils"
 
 export const CHECK_INTERVAL_MINUTES = 24 * 60
 
@@ -40,12 +41,6 @@ function cutoffMinutesAgo(minutes: number) {
   return cutoffDate
 }
 
-function cutoffDaysAgo(days: number) {
-  const cutoffDate = new Date()
-  cutoffDate.setDate(cutoffDate.getDate() - days)
-  return cutoffDate
-}
-
 const translationCacheCleanupJob: CleanupJob = {
   alarmName: TRANSLATION_CACHE_CLEANUP_ALARM,
   table: db.translationCache,
@@ -61,7 +56,7 @@ const translationCacheCleanupJob: CleanupJob = {
 const requestRecordCleanupJob: CleanupJob = {
   alarmName: REQUEST_RECORD_CLEANUP_ALARM,
   table: db.batchRequestRecord,
-  getCutoff: () => cutoffDaysAgo(REQUEST_RECORD_MAX_AGE_DAYS),
+  getCutoff: () => getDateFromDaysBack(REQUEST_RECORD_MAX_AGE_DAYS),
   countPolicy: {
     maxCount: REQUEST_RECORD_MAX_COUNT,
     keyOf: (record) => record.key,

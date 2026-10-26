@@ -1,14 +1,13 @@
 import { useAtomValue } from "jotai"
-import { useContext, useMemo } from "react"
+import { useMemo } from "react"
+import { FieldErrorText } from "@/components/form/field-error-text"
 import ProviderSelector from "@/components/llm-providers/provider-selector"
+import { useSelectableProviders } from "@/components/llm-providers/use-feature-providers"
 import { Field, FieldTitle } from "@/components/ui/base-ui/field"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { i18n } from "@/utils/i18n"
-import {
-  getProviderIdsForCapability,
-  getSelectableProvidersForCapability,
-} from "@/utils/providers/provider-registry"
+import { getProviderIdsForCapability } from "@/utils/providers/provider-registry"
 import { withForm } from "./form"
 
 export const ProviderField = withForm({
@@ -16,10 +15,7 @@ export const ProviderField = withForm({
   render: function Render({ form }) {
     const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
 
-    const customActionProviders = useMemo(
-      () => getSelectableProvidersForCapability("customAction", providersConfig),
-      [providersConfig],
-    )
+    const customActionProviders = useSelectableProviders("customAction")
     const customActionProviderIds = useMemo(
       () =>
         getProviderIdsForCapability("customAction", providersConfig, {
@@ -54,11 +50,7 @@ export const ProviderField = withForm({
               }}
               placeholder={i18n.t("options.selectionToolbar.customActions.form.selectProvider")}
             />
-            {field.state.meta.errors.length > 0 && (
-              <span className="text-sm font-normal text-destructive">
-                {field.state.meta.errors.join(", ")}
-              </span>
-            )}
+            <FieldErrorText errors={field.state.meta.errors} />
           </Field>
         )}
       </form.AppField>

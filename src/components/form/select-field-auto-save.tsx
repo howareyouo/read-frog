@@ -3,6 +3,7 @@ import type * as React from "react"
 import { useCallback } from "react"
 import { Field, FieldError, FieldTitle } from "@/components/ui/base-ui/field"
 import { Select } from "@/components/ui/base-ui/select"
+import { formatFieldErrors } from "./field-error-text"
 import { useFieldContext } from "./form-context"
 import { useDebouncedSubmit } from "./use-debounced-submit"
 
@@ -43,9 +44,7 @@ export function SelectFieldAutoSave({
       <Select value={field.state.value} onValueChange={handleValueChange} {...props}>
         {props.children}
       </Select>
-      <FieldError>
-        {errors.map((error) => (typeof error === "string" ? error : error?.message)).join(", ")}
-      </FieldError>
+      <FieldError>{formatFieldErrors(errors)}</FieldError>
     </Field>
   )
 }

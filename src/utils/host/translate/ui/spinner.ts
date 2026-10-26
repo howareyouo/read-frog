@@ -47,39 +47,45 @@ export function cancelSpinnerAnimation(spinner: HTMLElement): void {
 }
 
 /**
- * Create a lightweight spinner element without React/Shadow DOM overhead
- * Uses Web Animations API instead of CSS keyframes to avoid DOM injection
- * This is significantly faster than the React-based spinner for bulk operations
+ * Shared style knobs for the border-spinner variants: the inline paragraph
+ * spinner (small, muted, flows with text) and the input-translation spinner
+ * (larger, brand-colored, absolutely positioned next to an input).
  */
-export function createLightweightSpinner(ownerDoc: Document): HTMLElement {
+interface BorderSpinnerStyle {
+  /** Outer diameter in px, excluding the border. */
+  size: number
+  /** Ring thickness in px. */
+  borderWidth: number
+  /** Static ring (track) color. */
+  trackColor: string
+  /** Rotating segment color; also used for the static fallback ring. */
+  spinColor: string
+  /** Layout-specific styles appended after the shared base. */
+  extraCss?: string
+}
+
+/**
+ * Create a border spinner with the shared WAAPI rotation and reduced-motion
+ * fallback. The animation is registered so teardown must call
+ * cancelSpinnerAnimation before removing the element (#1831 leak class).
+ */
+export function createBorderSpinner(ownerDoc: Document, style: BorderSpinnerStyle): HTMLElement {
+  const { size, borderWidth, trackColor, spinColor, extraCss = "" } = style
   const spinner = ownerDoc.createElement("span")
-  spinner.className = SPINNER_CLASS
   // Inline styles keep the spinner resilient against host page CSS overrides.
-  // Use a thin muted arc with transparent sides so bulk page translation does
-  // not paint a dense field of high-contrast rings across the screen.
   spinner.style.cssText = `
     display: inline-block !important;
-    width: 6px !important;
-    height: 6px !important;
-    min-width: 6px !important;
-    min-height: 6px !important;
-    max-width: 6px !important;
-    max-height: 6px !important;
-    aspect-ratio: 1 / 1 !important;
-    margin: 0 4px !important;
-    padding: 0 !important;
-    vertical-align: middle !important;
-    border: 1.5px solid transparent !important;
-    border-top: 1.5px solid var(--read-frog-muted-foreground) !important;
+    width: ${size}px !important;
+    height: ${size}px !important;
+    border: ${borderWidth}px solid ${trackColor} !important;
+    border-top-color: ${spinColor} !important;
     border-radius: 50% !important;
     box-sizing: content-box !important;
-    flex-shrink: 0 !important;
-    flex-grow: 0 !important;
-    align-self: center !important;
+    ${extraCss}
   `
 
-  // Use Web Animations API instead of CSS keyframes - no DOM manipulation needed
-  // Respect user's motion preferences
+  // Use Web Animations API instead of CSS keyframes - no DOM manipulation needed.
+  // Respect user's motion preferences.
   const prefersReducedMotion = ownerDoc.defaultView?.matchMedia
     ? ownerDoc.defaultView.matchMedia("(prefers-reduced-motion: reduce)").matches
     : false
@@ -99,12 +105,41 @@ export function createLightweightSpinner(ownerDoc: Document): HTMLElement {
     spinnerAnimations.set(spinner, animation)
     activeSpinnerAnimationCount++
   } else {
-    // For reduced motion or when Web Animations API isn't available,
-    // keep a static muted segment so the loading state stays visible
-    // without requiring animation.
-    spinner.style.borderTopColor = "var(--read-frog-muted-foreground)"
+    // For reduced motion or when Web Animations API isn't available, keep a
+    // static colored segment so the loading state stays visible without
+    // requiring animation.
+    spinner.style.borderTopColor = spinColor
   }
 
+  return spinner
+}
+
+/**
+ * Create a lightweight spinner element without React/Shadow DOM overhead
+ * Uses Web Animations API instead of CSS keyframes to avoid DOM injection
+ * This is significantly faster than the React-based spinner for bulk operations
+ */
+export function createLightweightSpinner(ownerDoc: Document): HTMLElement {
+  const spinner = createBorderSpinner(ownerDoc, {
+    size: 6,
+    borderWidth: 1.5,
+    trackColor: "transparent",
+    spinColor: "var(--read-frog-muted-foreground)",
+    extraCss: `
+      min-width: 6px !important;
+      min-height: 6px !important;
+      max-width: 6px !important;
+      max-height: 6px !important;
+      aspect-ratio: 1 / 1 !important;
+      margin: 0 4px !important;
+      padding: 0 !important;
+      vertical-align: middle !important;
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+      align-self: center !important;
+    `,
+  })
+  spinner.className = SPINNER_CLASS
   return spinner
 }
 

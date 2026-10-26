@@ -9,9 +9,8 @@ import type {
 } from "@/types/config/provider"
 import { isProtocolCompatibleLLMProviderConfig } from "@/types/config/provider"
 import { getObjectWithoutAPIKeys } from "@/utils/config/api"
-import { DEFAULT_CONFIG } from "@/utils/constants/config"
 import { i18n } from "@/utils/i18n"
-import { sendMessage } from "@/utils/message"
+import { probeProviderConnection } from "@/utils/providers/provider-connection"
 import { useModelFetcherConnectApi } from "../model-fetcher-connect-context"
 
 const SLOW_CONNECTION_THRESHOLD_MS = 3_000
@@ -149,11 +148,7 @@ function PureAPIKeyConnectionButton({ providerConfig }: { providerConfig: APIPro
     // for safety, we should not include apiKey in the mutationKey
     mutationKey: ["apiConnection", getObjectWithoutAPIKeys(providerConfig)],
     mutationFn: async (_variables: ConnectionTestVariables) => {
-      return await sendMessage("directTranslate", {
-        text: "Hi",
-        langConfig: DEFAULT_CONFIG.language,
-        providerConfig,
-      })
+      return await probeProviderConnection(providerConfig)
     },
   })
 

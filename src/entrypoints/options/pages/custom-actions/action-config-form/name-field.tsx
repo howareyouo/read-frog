@@ -1,4 +1,5 @@
 import { useAtomValue } from "jotai"
+import { createDuplicateNameValidator } from "@/components/form/duplicate-name-validator"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { i18n } from "@/utils/i18n"
@@ -16,6 +17,13 @@ export const NameField = withForm({
     const selectedActionId = useAtomValue(selectedCustomActionIdAtom)
     const customActions = selectionToolbarConfig.customActions ?? []
 
+    const duplicateNameValidator = createDuplicateNameValidator({
+      entities: customActions,
+      currentEntityId: selectedActionId,
+      message: (name) =>
+        i18n.t("options.selectionToolbar.customActions.errors.duplicateName", [name]),
+    })
+
     return (
       <form.AppField
         name="name"
@@ -24,13 +32,7 @@ export const NameField = withForm({
             if (!value.trim()) {
               return i18n.t("options.selectionToolbar.customActions.errors.nameRequired")
             }
-            const duplicate = customActions.find(
-              (action) => action.name === value && action.id !== selectedActionId,
-            )
-            if (duplicate) {
-              return i18n.t("options.selectionToolbar.customActions.errors.duplicateName", [value])
-            }
-            return undefined
+            return duplicateNameValidator({ value })
           },
         }}
       >

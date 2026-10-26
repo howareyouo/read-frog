@@ -7,16 +7,15 @@
  */
 
 import { useAtom } from "jotai"
-import { useContext, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 import { Icon } from "@/components/icons/icon"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/base-ui/alert"
-import { Button } from "@/components/ui/base-ui/button"
 import { JSONCodeEditor } from "@/components/ui/json-code-editor"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { i18n } from "@/utils/i18n"
-import { cn } from "@/utils/styles/utils"
 import { ConfigItem } from "../../../../components/config-item"
+import { DraftEditorFooter } from "../../../../components/draft-editor-footer"
 import type { UserRulesValidationErrorKind, UserRulesValidationResult } from "./validate-user-rules"
 import { validateUserRulesDocument } from "./validate-user-rules"
 
@@ -113,22 +112,15 @@ export function UserRulesEditor() {
             </AlertDescription>
           </Alert>
         )}
-        <div className="flex items-center justify-between gap-2">
-          <div
-            className={cn(
-              "text-sm text-green-500",
-              isValidating && "text-muted-foreground",
-              !validation.ok && "text-destructive",
-            )}
-          >
-            {getValidationMessage(validation, isValidating, hasChanges)}
-          </div>
-          <Button onClick={handleSave} disabled={isValidating || !validation.ok || !hasChanges}>
-            {hasChanges
-              ? i18n.t("options.siteRules.userRules.saveButton")
-              : i18n.t("options.siteRules.userRules.savedButton")}
-          </Button>
-        </div>
+        <DraftEditorFooter
+          message={getValidationMessage(validation, isValidating, hasChanges)}
+          isValidating={isValidating}
+          hasError={!validation.ok}
+          hasChanges={hasChanges}
+          onSave={handleSave}
+          saveButtonLabel={i18n.t("options.siteRules.userRules.saveButton")}
+          savedButtonLabel={i18n.t("options.siteRules.userRules.savedButton")}
+        />
       </div>
     </ConfigItem>
   )

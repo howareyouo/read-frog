@@ -1,18 +1,7 @@
 import { IconRefresh } from "@tabler/icons-react"
 import { useSetAtom } from "jotai"
 import { useContext, useState } from "react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/base-ui/alert-dialog"
-import { Button } from "@/components/ui/base-ui/button"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { writeConfigAtom } from "@/utils/atoms/config"
 import { buildFreshDefaultConfig } from "@/utils/constants/config"
 import { i18n } from "@/utils/i18n"
@@ -32,30 +21,22 @@ export function ResetConfigItem() {
       title={i18n.t("options.preference.config.reset.title")}
       description={i18n.t("options.preference.config.reset.description")}
     >
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
-          <IconRefresh />
-          {i18n.t("options.preference.config.reset.dialog.trigger")}
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {i18n.t("options.preference.config.reset.dialog.title")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {i18n.t("options.preference.config.reset.dialog.description")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              {i18n.t("options.preference.config.reset.dialog.cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={resetToDefaultConfig}>
-              {i18n.t("options.preference.config.reset.dialog.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
+          <>
+            <IconRefresh />
+            {i18n.t("options.preference.config.reset.dialog.trigger")}
+          </>
+        }
+        triggerButtonProps={{ variant: "destructive", size: "sm" }}
+        title={i18n.t("options.preference.config.reset.dialog.title")}
+        description={i18n.t("options.preference.config.reset.dialog.description")}
+        cancelLabel={i18n.t("options.preference.config.reset.dialog.cancel")}
+        confirmLabel={i18n.t("options.preference.config.reset.dialog.confirm")}
+        onConfirm={resetToDefaultConfig}
+      />
     </ConfigItem>
   )
 }

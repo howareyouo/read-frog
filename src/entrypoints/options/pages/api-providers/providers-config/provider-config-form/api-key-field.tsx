@@ -3,18 +3,9 @@ import { useSelector } from "@tanstack/react-store"
 import { useAtom } from "jotai"
 import { Fragment, useEffect, useState } from "react"
 import { useDebouncedSubmit } from "@/components/form/use-debounced-submit"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/base-ui/alert-dialog"
 import { Button } from "@/components/ui/base-ui/button"
 import { Input } from "@/components/ui/base-ui/input"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import type { APIProviderConfig } from "@/types/config/provider"
 import { isLLMProviderConfig } from "@/types/config/provider"
 import { i18n } from "@/utils/i18n"
@@ -173,31 +164,19 @@ export const APIKeyField = withForm({
                         )}
                       </Fragment>
                     ))}
-                    <AlertDialog
+                    <ConfirmActionDialog
                       open={keyToRemove !== null}
                       onOpenChange={(open) => {
                         if (!open) setKeyToRemove(null)
                       }}
-                    >
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            {i18n.t("options.apiProviders.apiKey.removeKeyDialog.title")}
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            {i18n.t("options.apiProviders.apiKey.removeKeyDialog.description")}
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>
-                            {i18n.t("options.apiProviders.apiKey.removeKeyDialog.cancel")}
-                          </AlertDialogCancel>
-                          <AlertDialogAction variant="destructive" onClick={confirmRemoveKey}>
-                            {i18n.t("options.apiProviders.apiKey.removeKeyDialog.confirm")}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                      title={i18n.t("options.apiProviders.apiKey.removeKeyDialog.title")}
+                      description={i18n.t(
+                        "options.apiProviders.apiKey.removeKeyDialog.description",
+                      )}
+                      cancelLabel={i18n.t("options.apiProviders.apiKey.removeKeyDialog.cancel")}
+                      confirmLabel={i18n.t("options.apiProviders.apiKey.removeKeyDialog.confirm")}
+                      onConfirm={confirmRemoveKey}
+                    />
                     <div className="col-span-3 flex items-center gap-2">
                       <Button
                         type="button"

@@ -3,6 +3,7 @@ import { ISO6393_TO_6391 } from "@read-frog/definitions"
 import type { Config } from "@/types/config/config"
 import { getDetectedCodeFromStorage, getFinalSourceCode } from "@/utils/config/languages"
 import { getEffectiveSiteRule } from "@/utils/site-rules/effective"
+import { memoizePromise } from "@/utils/utils"
 
 const PURE_HANDLE_RE = /^@\S+$/u
 
@@ -22,13 +23,12 @@ function getSegmenter(locale: string): Intl.Segmenter {
 // The detected source code is stable for the lifetime of a page; memoize the
 // (async) storage read instead of paying it on every paragraph this filter
 // runs on (it is called once per virtual/bilingual/translationOnly run).
-let cachedDetectedCode: Promise<LangCodeISO6393> | undefined
+const getDetectedCodeFromStorageCached = memoizePromise(getDetectedCodeFromStorage)
 
 async function getFinalSourceCodeCached(
   configSourceCode: LangCodeISO6393 | "auto",
 ): Promise<LangCodeISO6393> {
-  if (!cachedDetectedCode) cachedDetectedCode = getDetectedCodeFromStorage()
-  const detectedCode = await cachedDetectedCode
+  const detectedCode = await getDetectedCodeFromStorageCached()
   return getFinalSourceCode(configSourceCode, detectedCode)
 }
 

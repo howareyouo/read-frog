@@ -1,13 +1,10 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import type { LanguageModel } from "ai"
-import { storage } from "#imports"
-import type { Config } from "@/types/config/config"
 import type { LLMProviderConfig } from "@/types/config/provider"
 import { isOpenAICompatibleLLMProviderConfig } from "@/types/config/provider"
-import { compactObject } from "@/types/utils"
 import { createObservedFetch } from "@/utils/request/http-fetch"
 import { getLLMProvidersConfig, getProviderConfigById } from "../config/helpers"
-import { CONFIG_STORAGE_KEY } from "../constants/config"
+import { getLocalConfig } from "../config/storage"
 import { getProviderHeadersWithOverride } from "./headers"
 import { resolveModelId } from "./model-id"
 
@@ -22,7 +19,7 @@ interface ProviderLike {
 }
 
 export async function getLanguageModelById(providerId: string) {
-  const config = await storage.getItem<Config>(`local:${CONFIG_STORAGE_KEY}`)
+  const config = await getLocalConfig()
   if (!config) {
     throw new Error("Config not found")
   }

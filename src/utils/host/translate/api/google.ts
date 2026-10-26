@@ -1,5 +1,6 @@
 import { escapeText } from "entities"
 import type { TranslationTextFormat } from "@/types/config/translate"
+import { wrapParseError } from "@/utils/error/message"
 import { httpFetch } from "@/utils/request/http-fetch"
 
 /**
@@ -203,7 +204,6 @@ export async function googleTranslate(
       .replace(GOOGLE_LINE_BREAK_MARKER_PAIR_GLOBAL_REGEX, "\n")
       .replace(GOOGLE_LINE_BREAK_MARKER_SINGLE_REGEX, "\n")
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to parse translation response: ${message}`, { cause: error })
+    throw wrapParseError("Failed to parse translation response", error)
   }
 }

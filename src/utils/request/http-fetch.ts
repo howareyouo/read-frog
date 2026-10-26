@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/utils/error/message"
 import { logger } from "@/utils/logger"
 import { attachRequestErrorMeta } from "@/utils/request/retry-policy"
 
@@ -6,7 +7,7 @@ import { attachRequestErrorMeta } from "@/utils/request/retry-policy"
  */
 export type ObservedFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
-function describeTarget(input: string | URL | Request) {
+export function describeTarget(input: string | URL | Request) {
   if (typeof input === "string") return input
   if (input instanceof URL) return input.toString()
   return input.url
@@ -50,11 +51,13 @@ export async function httpFetch(
   label: string,
 ): Promise<Response> {
   const resp = await createObservedFetch(label)(url, init).catch((error) => {
-    const message = error instanceof Error ? error.message : String(error)
-    throw attachRequestErrorMeta(new Error(`Network error during ${label}: ${message}`), {
-      kind: "network",
-      isRetryable: true,
-    })
+    throw attachRequestErrorMeta(
+      new Error(`Network error during ${label}: ${getErrorMessage(error)}`),
+      {
+        kind: "network",
+        isRetryable: true,
+      },
+    )
   })
 
   if (!resp.ok) {

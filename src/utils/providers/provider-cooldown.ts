@@ -12,6 +12,8 @@
  * outlive whatever quota window it described.
  */
 
+import { exponentialBackoffMs } from "@/utils/request/retry-policy"
+
 export type ProviderFailureKind = "rate-limit" | "access-denied"
 
 // No Retry-After header: assume the shortest plausible quota window and let the
@@ -49,7 +51,7 @@ export function markProviderCoolingDown(
   const base =
     kind === "access-denied"
       ? ACCESS_DENIED_COOLDOWN_MS
-      : DEFAULT_RATE_LIMIT_COOLDOWN_MS * 2 ** Math.min(failures - 1, 4)
+      : exponentialBackoffMs(DEFAULT_RATE_LIMIT_COOLDOWN_MS, Math.min(failures - 1, 4))
   const cooldownMs = Math.min(Math.max(base, retryAfterMs ?? 0), MAX_COOLDOWN_MS)
 
   cooldownUntilById.set(providerId, now + cooldownMs)

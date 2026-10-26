@@ -4,9 +4,21 @@ import { configSchema } from "@/types/config/config"
 import type { ConfigMeta, ConfigValueAndMeta } from "@/types/config/meta"
 import { CONFIG_SCHEMA_VERSION, CONFIG_STORAGE_KEY, DEFAULT_CONFIG } from "../constants/config"
 import { logger } from "../logger"
+import { memoizePromise } from "../utils"
+
+export const CONFIG_STORAGE_ITEM = `local:${CONFIG_STORAGE_KEY}`
+
+async function writeConfigItem(config: Config, meta: Partial<ConfigMeta>) {
+  const parsedConfig = configSchema.safeParse(config)
+  if (!parsedConfig.success) {
+    throw new Error("Config is invalid")
+  }
+  await storage.setItem<Config>(CONFIG_STORAGE_ITEM, parsedConfig.data)
+  await storage.setMeta<Partial<ConfigMeta>>(CONFIG_STORAGE_ITEM, meta)
+}
 
 export async function getLocalConfig() {
-  const config = await storage.getItem<Config>(`local:${CONFIG_STORAGE_KEY}`)
+  const config = await storage.getItem<Config>(CONFIG_STORAGE_ITEM)
   if (!config) {
     logger.warn("No config found in storage")
     return null
@@ -19,14 +31,14 @@ export async function getLocalConfig() {
   return parsedConfig.data
 }
 
-let cachedConfigPromise: Promise<Config | null> | undefined
+const memoizedGetLocalConfig = memoizePromise(getLocalConfig)
 let configCacheWatcherRegistered = false
 
 function ensureConfigCacheWatcher() {
   if (configCacheWatcherRegistered) return
   configCacheWatcherRegistered = true
-  storage.watch<Config>(`local:${CONFIG_STORAGE_KEY}`, () => {
-    cachedConfigPromise = undefined
+  storage.watch<Config>(CONFIG_STORAGE_ITEM, () => {
+    memoizedGetLocalConfig.reset()
   })
 }
 
@@ -43,30 +55,20 @@ function ensureConfigCacheWatcher() {
  * the config changes in storage, so callers can treat the returned object as
  * always reflecting the current config.
  */
-export function getCachedConfig(): Promise<Config | null> {
+export async function getCachedConfig(): Promise<Config | null> {
   ensureConfigCacheWatcher()
-  if (cachedConfigPromise === undefined) {
-    cachedConfigPromise = getLocalConfig()
-  }
-  return cachedConfigPromise
+  return memoizedGetLocalConfig()
 }
 
 export async function setLocalConfig(config: Config) {
-  const parsedConfig = configSchema.safeParse(config)
-  if (!parsedConfig.success) {
-    throw new Error("Config is invalid")
-  }
-  await storage.setItem<Config>(`local:${CONFIG_STORAGE_KEY}`, parsedConfig.data)
-  await storage.setMeta<Partial<ConfigMeta>>(`local:${CONFIG_STORAGE_KEY}`, {
-    lastModifiedAt: Date.now(),
-  })
+  await writeConfigItem(config, { lastModifiedAt: Date.now() })
 }
 
 export async function getLocalConfigAndMeta(): Promise<ConfigValueAndMeta> {
   try {
     const [config, meta] = await Promise.all([
-      storage.getItem<Config>(`local:${CONFIG_STORAGE_KEY}`),
-      storage.getMeta<ConfigMeta>(`local:${CONFIG_STORAGE_KEY}`),
+      storage.getItem<Config>(CONFIG_STORAGE_ITEM),
+      storage.getMeta<ConfigMeta>(CONFIG_STORAGE_ITEM),
     ])
 
     if (!config) {
@@ -92,14 +94,8 @@ export async function getLocalConfigAndMeta(): Promise<ConfigValueAndMeta> {
 }
 
 export async function setLocalConfigAndMeta(config: Config, meta: Partial<ConfigMeta>) {
-  const lastModifiedAt = meta.lastModifiedAt ?? Date.now()
-  const parsedConfig = configSchema.safeParse(config)
-  if (!parsedConfig.success) {
-    throw new Error("Config is invalid")
-  }
-  await storage.setItem<Config>(`local:${CONFIG_STORAGE_KEY}`, parsedConfig.data)
-  await storage.setMeta<Partial<ConfigMeta>>(`local:${CONFIG_STORAGE_KEY}`, {
+  await writeConfigItem(config, {
     ...meta,
-    lastModifiedAt,
+    lastModifiedAt: meta.lastModifiedAt ?? Date.now(),
   })
 }

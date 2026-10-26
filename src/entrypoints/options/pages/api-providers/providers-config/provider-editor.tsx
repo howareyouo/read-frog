@@ -1,20 +1,11 @@
 import { useSelector } from "@tanstack/react-store"
 import { useAtomValue } from "jotai"
-import { createContext, useContext, useMemo, useState } from "react"
+import { createContext, useContext, useMemo } from "react"
+import { createDuplicateNameValidator } from "@/components/form/duplicate-name-validator"
 import ProviderIcon from "@/components/provider-icon"
 import { useTheme } from "@/components/providers/theme-provider"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/base-ui/alert-dialog"
 import { Button } from "@/components/ui/base-ui/button"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import type { APIProviderConfig } from "@/types/config/provider"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { API_PROVIDER_ITEMS } from "@/utils/constants/providers"
@@ -181,14 +172,11 @@ function NameField() {
     <form.AppField
       name="name"
       validators={{
-        onChange: ({ value }) => {
-          const providerWithSameName = providersConfig.find(
-            (provider) => provider.name === value && provider.id !== providerId,
-          )
-          return providerWithSameName
-            ? i18n.t("options.apiProviders.form.duplicateProviderName", [value])
-            : undefined
-        },
+        onChange: createDuplicateNameValidator({
+          entities: providersConfig,
+          currentEntityId: providerId,
+          message: (name) => i18n.t("options.apiProviders.form.duplicateProviderName", [name]),
+        }),
       }}
     >
       {(field) => (
@@ -252,32 +240,17 @@ function DuplicateButton() {
 
 function DeleteButton() {
   const deleteProvider = useRequiredProviderCommand("delete")
-  const [open, setOpen] = useState(false)
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button type="button" variant="destructive" size="sm" />}>
-        {i18n.t("options.apiProviders.form.delete")}
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {i18n.t("options.apiProviders.form.deleteDialog.title")}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {i18n.t("options.apiProviders.form.deleteDialog.description")}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>
-            {i18n.t("options.apiProviders.form.deleteDialog.cancel")}
-          </AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={() => void deleteProvider()}>
-            {i18n.t("options.apiProviders.form.deleteDialog.confirm")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmActionDialog
+      trigger={i18n.t("options.apiProviders.form.delete")}
+      triggerButtonProps={{ variant: "destructive", size: "sm" }}
+      title={i18n.t("options.apiProviders.form.deleteDialog.title")}
+      description={i18n.t("options.apiProviders.form.deleteDialog.description")}
+      cancelLabel={i18n.t("options.apiProviders.form.deleteDialog.cancel")}
+      confirmLabel={i18n.t("options.apiProviders.form.deleteDialog.confirm")}
+      onConfirm={() => void deleteProvider()}
+    />
   )
 }
 
